@@ -97,8 +97,33 @@ CREATE TABLE audit_log (
     action VARCHAR(100),
     query TEXT,
     response_summary TEXT,
+    full_response TEXT,
+    confidence VARCHAR(20),
+    avg_similarity_score FLOAT,
+    thread_id VARCHAR(255),
+    is_flagged BOOLEAN DEFAULT FALSE,
+    flag_reason VARCHAR(100),
+    admin_notes TEXT,
+    reviewed_by VARCHAR(500),
+    reviewed_at TIMESTAMP,
+    response_time_ms INTEGER,
     documents_cited JSONB DEFAULT '[]',
     created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Admin answer overrides (FAQ system)
+CREATE TABLE admin_answers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    question_pattern TEXT NOT NULL,
+    answer TEXT NOT NULL,
+    keywords TEXT[],
+    embedding vector(768),
+    source_audit_id UUID REFERENCES audit_log(id),
+    created_by VARCHAR(500) NOT NULL,
+    updated_by VARCHAR(500),
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Indexes
@@ -112,3 +137,10 @@ CREATE INDEX idx_residents_email ON residents(email);
 CREATE INDEX idx_maintenance_unit ON maintenance_log(unit);
 CREATE INDEX idx_audit_user ON audit_log(user_email);
 CREATE INDEX idx_audit_created ON audit_log(created_at);
+CREATE INDEX idx_audit_flagged ON audit_log(is_flagged) WHERE is_flagged = TRUE;
+CREATE INDEX idx_audit_confidence ON audit_log(confidence);
+CREATE INDEX idx_audit_channel ON audit_log(channel);
+CREATE INDEX idx_audit_action ON audit_log(action);
+CREATE INDEX idx_audit_thread ON audit_log(thread_id);
+CREATE INDEX idx_admin_answers_embedding ON admin_answers USING ivfflat (embedding vector_cosine_ops) WITH (lists = 20);
+CREATE INDEX idx_admin_answers_active ON admin_answers(is_active) WHERE is_active = TRUE;

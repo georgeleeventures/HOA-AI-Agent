@@ -2,58 +2,264 @@
 
 {% block title %}Admin - HouseKeep AI{% endblock %}
 
+{% block extra_css %}
+.admin-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+}
+.admin-tab {
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #718096;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+}
+.admin-tab:hover { color: #2b6cb0; }
+.admin-tab.active { color: #2b6cb0; border-bottom-color: #2b6cb0; font-weight: 600; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.filter-bar {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    margin-bottom: 1rem;
+}
+.filter-bar label {
+    font-size: 0.8rem;
+    color: #718096;
+    display: block;
+    margin-bottom: 0.15rem;
+}
+.filter-bar select, .filter-bar input {
+    width: auto;
+    min-width: 120px;
+    padding: 0.4rem 0.6rem;
+    font-size: 0.85rem;
+}
+.filter-bar .btn { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+.badge-red { background: #fed7d7; color: #822727; }
+.badge-flag { color: #e53e3e; cursor: help; }
+.audit-row { cursor: pointer; }
+.audit-row:hover { background: #f7fafc; }
+.audit-detail {
+    display: none;
+    background: #f7fafc;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+.audit-detail.open { display: table-row; }
+.audit-detail td { padding: 1rem 1.5rem; }
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+.detail-field label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #718096;
+    font-weight: 600;
+}
+.detail-field p {
+    margin-top: 0.25rem;
+    font-size: 0.9rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+.detail-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+.pagination {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+    margin-top: 1rem;
+    align-items: center;
+}
+.faq-table td, .faq-table th { font-size: 0.9rem; }
+.notes-input {
+    width: 100%;
+    min-height: 60px;
+    margin-top: 0.5rem;
+}
+{% endblock %}
+
 {% block content %}
 <h1>Admin Panel</h1>
 
-<div class="card mb-2">
-    <h2>Add Resident</h2>
-    <form id="addForm" onsubmit="addResident(event)" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end;">
-        <div style="flex: 1; min-width: 180px;">
-            <label class="text-sm">Email</label>
-            <input type="email" id="newEmail" required placeholder="resident@email.com">
-        </div>
-        <div style="flex: 1; min-width: 150px;">
-            <label class="text-sm">Name</label>
-            <input type="text" id="newName" required placeholder="Full name">
-        </div>
-        <div style="width: 100px;">
-            <label class="text-sm">Unit</label>
-            <input type="text" id="newUnit" placeholder="e.g. 2A">
-        </div>
-        <div style="width: 140px;">
-            <label class="text-sm">Role</label>
-            <select id="newRole">
-                <option value="resident">Resident</option>
-                <option value="board_member">Board Member</option>
-                <option value="admin">Admin</option>
-            </select>
-        </div>
-        <button type="submit" class="btn btn-primary">Add</button>
-    </form>
+<div class="admin-tabs">
+    <button class="admin-tab active" onclick="switchTab('residents')">Residents</button>
+    <button class="admin-tab" onclick="switchTab('audit')">Audit Log</button>
+    <button class="admin-tab" onclick="switchTab('faq')">FAQ / Answers</button>
+    <button class="admin-tab" onclick="switchTab('metrics')">Metrics</button>
 </div>
 
-<div class="card mb-2">
-    <h2>Residents</h2>
-    <div id="residentsList">
-        <p class="text-muted">Loading...</p>
+<!-- Residents Tab -->
+<div class="tab-content active" id="tab-residents">
+    <div class="card mb-2">
+        <h2>Add Resident</h2>
+        <form id="addForm" onsubmit="addResident(event)" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 180px;">
+                <label class="text-sm">Email</label>
+                <input type="email" id="newEmail" required placeholder="resident@email.com">
+            </div>
+            <div style="flex: 1; min-width: 150px;">
+                <label class="text-sm">Name</label>
+                <input type="text" id="newName" required placeholder="Full name">
+            </div>
+            <div style="width: 100px;">
+                <label class="text-sm">Unit</label>
+                <input type="text" id="newUnit" placeholder="e.g. 2A">
+            </div>
+            <div style="width: 140px;">
+                <label class="text-sm">Role</label>
+                <select id="newRole">
+                    <option value="resident">Resident</option>
+                    <option value="board_member">Board Member</option>
+                    <option value="admin">Admin</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Add</button>
+        </form>
+    </div>
+    <div class="card">
+        <h2>Residents</h2>
+        <div id="residentsList">
+            <p class="text-muted">Loading...</p>
+        </div>
     </div>
 </div>
 
-<div class="card">
-    <h2>Audit Log</h2>
-    <div id="auditLog" style="max-height: 400px; overflow-y: auto;">
-        <p class="text-muted">Loading...</p>
+<!-- Audit Log Tab -->
+<div class="tab-content" id="tab-audit">
+    <div class="card">
+        <h2>Audit Log</h2>
+        <div class="filter-bar">
+            <div>
+                <label>Channel</label>
+                <select id="filterChannel" onchange="loadAudit()">
+                    <option value="">All</option>
+                    <option value="email">Email</option>
+                    <option value="web_chat">Web Chat</option>
+                </select>
+            </div>
+            <div>
+                <label>Action</label>
+                <select id="filterAction" onchange="loadAudit()">
+                    <option value="">All</option>
+                    <option value="question">Question</option>
+                    <option value="correction">Correction</option>
+                    <option value="document_forward">Document Forward</option>
+                    <option value="thread_cc">Thread CC</option>
+                    <option value="unauthorized_attempt">Unauthorized</option>
+                    <option value="clarification_requested">Clarification</option>
+                </select>
+            </div>
+            <div>
+                <label>Confidence</label>
+                <select id="filterConfidence" onchange="loadAudit()">
+                    <option value="">All</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="none">None</option>
+                </select>
+            </div>
+            <div>
+                <label>Flagged</label>
+                <select id="filterFlagged" onchange="loadAudit()">
+                    <option value="">All</option>
+                    <option value="true">Flagged</option>
+                    <option value="false">Not Flagged</option>
+                </select>
+            </div>
+            <div>
+                <label>From</label>
+                <input type="date" id="filterDateFrom" onchange="loadAudit()">
+            </div>
+            <div>
+                <label>To</label>
+                <input type="date" id="filterDateTo" onchange="loadAudit()">
+            </div>
+            <div>
+                <label>Search</label>
+                <input type="text" id="filterSearch" placeholder="Search queries..." style="min-width: 160px;">
+            </div>
+            <button class="btn btn-secondary" onclick="loadAudit()">Search</button>
+        </div>
+
+        <div id="auditLog" style="overflow-x: auto;">
+            <p class="text-muted">Loading...</p>
+        </div>
+
+        <div class="pagination" id="auditPagination"></div>
+    </div>
+</div>
+
+<!-- FAQ / Answers Tab -->
+<div class="tab-content" id="tab-faq">
+    <div class="card mb-2">
+        <h2>Add Admin Answer</h2>
+        <form id="faqForm" onsubmit="addFaq(event)">
+            <div class="mb-2">
+                <label class="text-sm">Question Pattern</label>
+                <input type="text" id="faqQuestion" required placeholder="e.g. What are the quiet hours?">
+            </div>
+            <div class="mb-2">
+                <label class="text-sm">Authoritative Answer</label>
+                <textarea id="faqAnswer" required rows="3" placeholder="The official answer..."></textarea>
+            </div>
+            <input type="hidden" id="faqSourceAuditId" value="">
+            <button type="submit" class="btn btn-primary">Save Answer</button>
+        </form>
+    </div>
+    <div class="card">
+        <h2>Existing Answers</h2>
+        <div id="faqList">
+            <p class="text-muted">Loading...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Metrics Tab (Phase 6 placeholder) -->
+<div class="tab-content" id="tab-metrics">
+    <div class="card">
+        <h2>Metrics</h2>
+        <div id="metricsContent">
+            <p class="text-muted">Loading...</p>
+        </div>
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+// --- Tab Management ---
+function switchTab(name) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    event.target.classList.add('active');
+
+    if (name === 'audit') loadAudit();
+    if (name === 'faq') loadFaq();
+    if (name === 'metrics') loadMetrics();
+}
+
+// --- Residents ---
 async function loadResidents() {
-    const resp = await fetch('/api/admin/audit?limit=1');
-    // We don't have a residents list endpoint, so load from audit for now
-    // TODO: add GET /api/admin/residents
-    document.getElementById('residentsList').innerHTML = '<p class="text-muted">Resident management loaded via form above. Full list endpoint coming soon.</p>';
+    document.getElementById('residentsList').innerHTML = '<p class="text-muted">Resident management loaded via form above.</p>';
 }
 
 async function addResident(e) {
@@ -64,13 +270,11 @@ async function addResident(e) {
         unit: document.getElementById('newUnit').value || null,
         role: document.getElementById('newRole').value,
     };
-
     const resp = await fetch('/api/admin/residents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
-
     if (resp.ok) {
         document.getElementById('addForm').reset();
         alert('Resident added successfully.');
@@ -80,38 +284,318 @@ async function addResident(e) {
     }
 }
 
+// --- Audit Log ---
+let auditPage = 0;
+const auditLimit = 50;
+
 async function loadAudit() {
-    const resp = await fetch('/api/admin/audit?limit=50');
+    const params = new URLSearchParams();
+    const channel = document.getElementById('filterChannel').value;
+    const action = document.getElementById('filterAction').value;
+    const confidence = document.getElementById('filterConfidence').value;
+    const flagged = document.getElementById('filterFlagged').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    const search = document.getElementById('filterSearch').value;
+
+    if (channel) params.set('channel', channel);
+    if (action) params.set('action', action);
+    if (confidence) params.set('confidence', confidence);
+    if (flagged) params.set('flagged', flagged);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (search) params.set('search', search);
+    params.set('limit', auditLimit);
+    params.set('offset', auditPage * auditLimit);
+
+    const resp = await fetch('/api/admin/audit?' + params.toString());
     const data = await resp.json();
     const container = document.getElementById('auditLog');
 
     if (!data.audit_log || !data.audit_log.length) {
-        container.innerHTML = '<p class="text-muted">No activity yet.</p>';
+        container.innerHTML = '<p class="text-muted">No entries found.</p>';
+        document.getElementById('auditPagination').innerHTML = '';
         return;
     }
 
-    let html = '<table><thead><tr><th>Time</th><th>User</th><th>Channel</th><th>Action</th><th>Query</th></tr></thead><tbody>';
+    const confBadge = (c) => {
+        const colors = { high: 'badge-green', medium: 'badge-yellow', low: 'badge-red', none: 'badge-red' };
+        return c ? `<span class="badge ${colors[c] || 'badge-gray'}">${c}</span>` : '<span class="badge badge-gray">-</span>';
+    };
+
+    let html = '<table><thead><tr><th>Time</th><th>User</th><th>Channel</th><th>Action</th><th>Confidence</th><th>Flag</th><th>Query</th></tr></thead><tbody>';
     data.audit_log.forEach(entry => {
         const time = new Date(entry.created_at).toLocaleString();
-        html += `<tr>
+        const flagIcon = entry.is_flagged ? '<span class="badge-flag" title="' + escapeHtml(entry.flag_reason || 'flagged') + '">&#9873;</span>' : '';
+        html += `<tr class="audit-row" onclick="toggleDetail('${entry.id}')">
             <td class="text-sm">${time}</td>
             <td class="text-sm">${escapeHtml(entry.user_email)}</td>
             <td><span class="badge badge-gray">${entry.channel}</span></td>
             <td><span class="badge badge-blue">${entry.action}</span></td>
+            <td>${confBadge(entry.confidence)}</td>
+            <td>${flagIcon}</td>
             <td class="text-sm">${escapeHtml((entry.query || '').substring(0, 80))}</td>
+        </tr>
+        <tr class="audit-detail" id="detail-${entry.id}">
+            <td colspan="7" id="detail-content-${entry.id}">
+                <p class="text-muted">Loading details...</p>
+            </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+
+    // Pagination
+    const total = data.total || 0;
+    const totalPages = Math.ceil(total / auditLimit);
+    let pagHtml = '';
+    if (auditPage > 0) pagHtml += `<button class="btn btn-secondary" onclick="auditPage--;loadAudit()">Previous</button>`;
+    pagHtml += `<span class="text-sm text-muted">Page ${auditPage + 1} of ${totalPages} (${total} entries)</span>`;
+    if (auditPage < totalPages - 1) pagHtml += `<button class="btn btn-secondary" onclick="auditPage++;loadAudit()">Next</button>`;
+    document.getElementById('auditPagination').innerHTML = pagHtml;
+}
+
+async function toggleDetail(id) {
+    const row = document.getElementById('detail-' + id);
+    if (row.classList.contains('open')) {
+        row.classList.remove('open');
+        return;
+    }
+    row.classList.add('open');
+
+    const resp = await fetch('/api/admin/audit/' + id);
+    const d = await resp.json();
+    const container = document.getElementById('detail-content-' + id);
+
+    const confBadge = (c) => {
+        const colors = { high: 'badge-green', medium: 'badge-yellow', low: 'badge-red', none: 'badge-red' };
+        return c ? `<span class="badge ${colors[c] || 'badge-gray'}">${c}</span>` : '-';
+    };
+
+    const citations = (d.documents_cited || []).map(c => escapeHtml(c.title || 'Unknown')).join(', ') || 'None';
+
+    container.innerHTML = `
+        <div class="detail-grid">
+            <div class="detail-field">
+                <label>Full Query</label>
+                <p>${escapeHtml(d.query || '')}</p>
+            </div>
+            <div class="detail-field">
+                <label>Confidence</label>
+                <p>${confBadge(d.confidence)} (similarity: ${d.avg_similarity_score != null ? d.avg_similarity_score.toFixed(4) : 'N/A'})</p>
+            </div>
+            <div class="detail-field" style="grid-column: 1 / -1;">
+                <label>Full Response</label>
+                <p>${escapeHtml(d.full_response || d.response_summary || '')}</p>
+            </div>
+            <div class="detail-field">
+                <label>Documents Cited</label>
+                <p>${citations}</p>
+            </div>
+            <div class="detail-field">
+                <label>Response Time</label>
+                <p>${d.response_time_ms != null ? d.response_time_ms + 'ms' : 'N/A'}</p>
+            </div>
+            <div class="detail-field">
+                <label>Reviewed By</label>
+                <p>${escapeHtml(d.reviewed_by || 'Not reviewed')}</p>
+            </div>
+            <div class="detail-field">
+                <label>Flag Status</label>
+                <p>${d.is_flagged ? '<span class="badge badge-red">' + escapeHtml(d.flag_reason || 'flagged') + '</span>' : 'Not flagged'}</p>
+            </div>
+            <div class="detail-field" style="grid-column: 1 / -1;">
+                <label>Admin Notes</label>
+                <textarea class="notes-input" id="notes-${d.id}" placeholder="Add notes...">${escapeHtml(d.admin_notes || '')}</textarea>
+                <button class="btn btn-secondary mt-1" onclick="saveNotes('${d.id}')">Save Notes</button>
+            </div>
+        </div>
+        <div class="detail-actions">
+            ${d.is_flagged
+                ? `<button class="btn btn-secondary" onclick="flagEntry('${d.id}', false)">Unflag</button>`
+                : `<button class="btn btn-danger" onclick="flagEntry('${d.id}', true)">Flag for Review</button>`
+            }
+            <button class="btn btn-primary" onclick="createFaqFrom('${d.id}', ${JSON.stringify(escapeHtml(d.query || ''))})">Create FAQ from This</button>
+        </div>
+    `;
+}
+
+async function flagEntry(id, flagged) {
+    await fetch('/api/admin/audit/' + id + '/flag', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_flagged: flagged, flag_reason: flagged ? 'admin_flagged' : null }),
+    });
+    loadAudit();
+}
+
+async function saveNotes(id) {
+    const notes = document.getElementById('notes-' + id).value;
+    await fetch('/api/admin/audit/' + id + '/notes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_notes: notes }),
+    });
+    alert('Notes saved.');
+}
+
+function createFaqFrom(auditId, question) {
+    switchTab('faq');
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-tab')[2].classList.add('active');
+    document.getElementById('faqQuestion').value = question;
+    document.getElementById('faqSourceAuditId').value = auditId;
+    document.getElementById('faqQuestion').focus();
+}
+
+// --- FAQ / Admin Answers ---
+async function loadFaq() {
+    const resp = await fetch('/api/admin/answers');
+    const data = await resp.json();
+    const container = document.getElementById('faqList');
+
+    if (!data.answers || !data.answers.length) {
+        container.innerHTML = '<p class="text-muted">No admin answers yet. Add one above or create from a flagged audit entry.</p>';
+        return;
+    }
+
+    let html = '<table class="faq-table"><thead><tr><th>Question Pattern</th><th>Answer</th><th>Created By</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+    data.answers.forEach(a => {
+        const status = a.is_active
+            ? '<span class="badge badge-green">Active</span>'
+            : '<span class="badge badge-gray">Inactive</span>';
+        html += `<tr>
+            <td>${escapeHtml(a.question_pattern)}</td>
+            <td class="text-sm">${escapeHtml((a.answer || '').substring(0, 120))}${a.answer && a.answer.length > 120 ? '...' : ''}</td>
+            <td class="text-sm">${escapeHtml(a.created_by)}${a.updated_by ? '<br><span class="text-muted">updated by ' + escapeHtml(a.updated_by) + '</span>' : ''}</td>
+            <td>${status}</td>
+            <td>
+                ${a.is_active ? `<button class="btn btn-secondary" style="padding:0.3rem 0.6rem;font-size:0.8rem" onclick="deactivateFaq('${a.id}')">Deactivate</button>` : ''}
+            </td>
         </tr>`;
     });
     html += '</tbody></table>';
     container.innerHTML = html;
 }
 
+async function addFaq(e) {
+    e.preventDefault();
+    const body = {
+        question_pattern: document.getElementById('faqQuestion').value,
+        answer: document.getElementById('faqAnswer').value,
+    };
+    const sourceId = document.getElementById('faqSourceAuditId').value;
+    if (sourceId) body.source_audit_id = sourceId;
+
+    const resp = await fetch('/api/admin/answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+    if (resp.ok) {
+        document.getElementById('faqForm').reset();
+        document.getElementById('faqSourceAuditId').value = '';
+        loadFaq();
+        alert('Admin answer saved. Future similar questions will use this answer.');
+    } else {
+        const err = await resp.json();
+        alert('Error: ' + (err.detail || 'Failed to save'));
+    }
+}
+
+async function deactivateFaq(id) {
+    if (!confirm('Deactivate this answer? It will no longer be used for future questions.')) return;
+    await fetch('/api/admin/answers/' + id, { method: 'DELETE' });
+    loadFaq();
+}
+
+// --- Metrics (Phase 6) ---
+async function loadMetrics() {
+    const container = document.getElementById('metricsContent');
+    container.innerHTML = '<p class="text-muted">Metrics dashboard loading...</p>';
+
+    try {
+        const resp = await fetch('/api/admin/metrics?days=30');
+        if (!resp.ok) {
+            container.innerHTML = '<p class="text-muted">Metrics endpoint not yet available.</p>';
+            return;
+        }
+        const m = await resp.json();
+        const unansweredPct = m.total_questions > 0 ? ((m.low_confidence_count / m.total_questions) * 100).toFixed(1) : '0';
+
+        container.innerHTML = `
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem;margin-bottom:1.5rem;">
+                <div class="card" style="text-align:center">
+                    <div class="text-sm text-muted">Total Questions (30d)</div>
+                    <div style="font-size:2rem;font-weight:700;color:#2b6cb0">${m.total_questions}</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div class="text-sm text-muted">Low Confidence Rate</div>
+                    <div style="font-size:2rem;font-weight:700;color:${parseFloat(unansweredPct) > 20 ? '#e53e3e' : '#38a169'}">${unansweredPct}%</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div class="text-sm text-muted">Disputed Answers</div>
+                    <div style="font-size:2rem;font-weight:700;color:#e53e3e">${m.disputed_count}</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div class="text-sm text-muted">Avg Response Time</div>
+                    <div style="font-size:2rem;font-weight:700;color:#2b6cb0">${m.avg_response_time_ms != null ? m.avg_response_time_ms + 'ms' : 'N/A'}</div>
+                </div>
+                <div class="card" style="text-align:center">
+                    <div class="text-sm text-muted">FAQ Hit Rate</div>
+                    <div style="font-size:2rem;font-weight:700;color:#38a169">${m.faq_hit_rate != null ? m.faq_hit_rate + '%' : 'N/A'}</div>
+                </div>
+            </div>
+            <div class="card">
+                <h3>Channel Breakdown</h3>
+                <div id="channelBreakdown"></div>
+            </div>
+            <div class="card mt-2">
+                <h3>Recent Low-Confidence Queries</h3>
+                <div id="lowConfQueries"></div>
+            </div>
+        `;
+
+        // Channel breakdown
+        if (m.by_channel) {
+            let chHtml = '<table><thead><tr><th>Channel</th><th>Count</th></tr></thead><tbody>';
+            m.by_channel.forEach(c => {
+                chHtml += `<tr><td>${escapeHtml(c.channel)}</td><td>${c.count}</td></tr>`;
+            });
+            chHtml += '</tbody></table>';
+            document.getElementById('channelBreakdown').innerHTML = chHtml;
+        }
+
+        // Low confidence queries
+        if (m.low_confidence_queries && m.low_confidence_queries.length) {
+            let lcHtml = '<table><thead><tr><th>Time</th><th>Query</th><th>Confidence</th><th></th></tr></thead><tbody>';
+            m.low_confidence_queries.forEach(q => {
+                const time = new Date(q.created_at).toLocaleString();
+                lcHtml += `<tr>
+                    <td class="text-sm">${time}</td>
+                    <td class="text-sm">${escapeHtml((q.query || '').substring(0, 100))}</td>
+                    <td><span class="badge badge-red">${q.confidence}</span></td>
+                    <td><button class="btn btn-secondary" style="padding:0.2rem 0.5rem;font-size:0.75rem" onclick="createFaqFrom('${q.id}', ${JSON.stringify(escapeHtml(q.query || ''))})">Create FAQ</button></td>
+                </tr>`;
+            });
+            lcHtml += '</tbody></table>';
+            document.getElementById('lowConfQueries').innerHTML = lcHtml;
+        } else {
+            document.getElementById('lowConfQueries').innerHTML = '<p class="text-muted">No low-confidence queries in the last 30 days.</p>';
+        }
+    } catch (err) {
+        container.innerHTML = '<p class="text-muted">Failed to load metrics.</p>';
+    }
+}
+
+// --- Utilities ---
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text || '';
     return div.innerHTML;
 }
 
+// Initial load
 loadResidents();
-loadAudit();
 </script>
 {% endblock %}

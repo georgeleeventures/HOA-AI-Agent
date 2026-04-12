@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 
 import asyncpg
 
@@ -82,6 +83,8 @@ class EmailHandler:
             await self._handle_document_forward(parsed, resident)
         elif intent == "thread_cc":
             await self._handle_thread_cc(parsed, resident)
+        elif intent == "correction":
+            await self._handle_correction(parsed, resident)
         else:
             await self._handle_question(parsed, resident)
 
@@ -91,10 +94,12 @@ class EmailHandler:
         if not question:
             question = parsed.get("subject", "")
 
+        start = time.monotonic()
         result = await self.rag.query(
             question=question,
             user_role=resident["role"],
         )
+        response_time_ms = int((time.monotonic() - start) * 1000)
 
         # Format response with citations
         answer = result["answer"]
@@ -110,16 +115,27 @@ class EmailHandler:
             thread_id=parsed.get("thread_id"),
         )
 
+        confidence = result.get("confidence", "none")
+        is_flagged = confidence in ("low", "none")
+        action = "clarification_requested" if result.get("needs_clarification") else "question"
+
         await self._log_audit(
             user_email=resident["email"],
             channel="email",
-            action="question",
+            action=action,
             query=question,
             response_summary=result["answer"][:500],
             documents_cited=[
                 {"title": s["document_title"], "category": s["category"]}
                 for s in result.get("sources", [])
             ],
+            full_response=result["answer"],
+            confidence=confidence,
+            avg_similarity_score=result.get("avg_similarity_score"),
+            thread_id=parsed.get("thread_id"),
+            is_flagged=is_flagged,
+            flag_reason="low_confidence" if is_flagged else None,
+            response_time_ms=response_time_ms,
         )
 
     async def _handle_document_forward(self, parsed: dict, resident: dict) -> None:
@@ -247,7 +263,69 @@ class EmailHandler:
             if any(att.get("mime_type") in doc_types for att in parsed["attachments"]):
                 return "document_forward"
 
+        # Check for correction/dispute in thread replies
+        if parsed.get("thread_id"):
+            correction_signals = [
+                "that's wrong", "that is wrong", "incorrect", "not correct",
+                "that's not right", "inaccurate", "bad answer", "wrong answer",
+                "actually,", "correction:", "you're wrong", "this is wrong",
+            ]
+            body_lower = parsed.get("body_text", "").lower()
+            if any(sig in body_lower for sig in correction_signals):
+                return "correction"
+
         return "question"
+
+    async def _handle_correction(self, parsed: dict, resident: dict) -> None:
+        """Handle a user disputing a previous answer."""
+        thread_id = parsed.get("thread_id")
+        correction_text = parsed.get("body_text", "").strip()
+
+        # Flag the original audit entry for this thread
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    """
+                    UPDATE audit_log
+                    SET is_flagged = TRUE,
+                        flag_reason = 'user_disputed'
+                    WHERE thread_id = $1
+                      AND user_email = $2
+                      AND action = 'question'
+                      AND is_flagged = FALSE
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    thread_id,
+                    resident["email"],
+                )
+        except Exception:
+            logger.exception("Failed to flag original audit entry")
+
+        # Reply to user
+        await self.gmail.send_message(
+            to=parsed["sender"],
+            subject=f"Re: {parsed.get('subject', '')}",
+            body=(
+                "Thank you for the correction. I've flagged this for review "
+                "by your HOA administrator. They'll be able to update the "
+                "answer so future questions get the right information."
+            ),
+            thread_id=thread_id,
+        )
+
+        # Log the correction itself
+        await self._log_audit(
+            user_email=resident["email"],
+            channel="email",
+            action="correction",
+            query=correction_text,
+            response_summary="Correction acknowledged, original flagged for review",
+            documents_cited=[],
+            thread_id=thread_id,
+            is_flagged=True,
+            flag_reason="user_disputed",
+        )
 
     async def _log_audit(
         self,
@@ -257,22 +335,42 @@ class EmailHandler:
         query: str,
         response_summary: str,
         documents_cited: list,
-    ) -> None:
-        """Write an entry to the audit log."""
+        full_response: str | None = None,
+        confidence: str | None = None,
+        avg_similarity_score: float | None = None,
+        thread_id: str | None = None,
+        is_flagged: bool = False,
+        flag_reason: str | None = None,
+        response_time_ms: int | None = None,
+    ) -> str | None:
+        """Write an entry to the audit log. Returns the audit entry ID."""
         try:
             async with self.pool.acquire() as conn:
-                await conn.execute(
+                row = await conn.fetchrow(
                     """
                     INSERT INTO audit_log (user_email, channel, action, query,
-                                           response_summary, documents_cited)
-                    VALUES ($1, $2, $3, $4, $5, $6)
+                                           response_summary, full_response,
+                                           confidence, avg_similarity_score,
+                                           thread_id, is_flagged, flag_reason,
+                                           response_time_ms, documents_cited)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    RETURNING id
                     """,
                     user_email,
                     channel,
                     action,
                     query,
                     response_summary,
+                    full_response,
+                    confidence,
+                    avg_similarity_score,
+                    thread_id,
+                    is_flagged,
+                    flag_reason,
+                    response_time_ms,
                     json.dumps(documents_cited),
                 )
+                return str(row["id"]) if row else None
         except Exception:
             logger.exception("Failed to write audit log")
+            return None
