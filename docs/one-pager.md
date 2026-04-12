@@ -66,8 +66,6 @@ A simple web dashboard is also available for residents who want a richer experie
 
 **Free for all HOA residents and administrators.** No subscription, no per-user fees, no hidden charges.
 
-HouseKeep is sustained through a contractor and service provider marketplace. When maintenance needs come up, HouseKeep can suggest vetted local professionals — plumbers, electricians, handymen, painters. Contractors pay for the opportunity to reach verified, active property management contacts. Suggestions are always clearly labeled and transparent.
-
 ## Technical Summary
 
 - **Hosting:** Single Google Cloud VM (~$7/month base infrastructure)
