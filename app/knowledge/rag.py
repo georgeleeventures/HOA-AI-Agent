@@ -5,6 +5,7 @@ import asyncpg
 from vertexai.generative_models import GenerativeModel
 from pgvector.asyncpg import register_vector
 
+from app.config import settings
 from app.knowledge.embeddings import EmbeddingService
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,16 @@ Context:
 
 Question: {question}"""
 
+CLARIFICATION_PROMPT = """You are HouseKeep AI, a helpful assistant for a Homeowners Association.
+The user asked a question, but it is too vague or there are no matching documents to answer it confidently.
+
+Instead of guessing, ask 2-3 specific clarifying questions to narrow down what they need.
+Be friendly, helpful, and suggest what kinds of information you CAN help with.
+
+The HOA documents cover these categories: {categories}
+
+User's question: {question}"""
+
 
 class RAGPipeline:
     def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
@@ -50,23 +61,55 @@ class RAGPipeline:
     ) -> dict:
         """Main RAG query: embed question, search, generate answer."""
 
-        # Embed the question
+        # Embed the question (reused for admin answer check and chunk search)
         question_embedding = await self.embedding_service.generate_embedding(
             question
         )
 
-        # Search for relevant chunks
+        # Check admin answers first (FAQ override)
+        admin_answer = await self._check_admin_answers(question_embedding)
+        if admin_answer:
+            return {
+                "answer": admin_answer["answer"],
+                "sources": [{
+                    "document_title": "Admin-approved answer",
+                    "category": "FAQ",
+                    "subcategory": "",
+                    "chunk_text": "",
+                }],
+                "confidence": "high",
+                "avg_similarity_score": admin_answer["distance"],
+                "admin_answer_id": str(admin_answer["id"]),
+            }
+
+        # Search for relevant chunks (now includes distance scores)
         chunks = await self._search_chunks(
             question_embedding, user_role, top_k
         )
 
         if not chunks:
+            # No matching documents — ask clarifying questions if query is vague
+            clarification = await self._generate_clarification(question)
             return {
-                "answer": (
-                    "I don't have information about that in our records. "
-                    "You may want to check with your HOA administrator."
-                ),
+                "answer": clarification,
                 "sources": [],
+                "confidence": "none",
+                "avg_similarity_score": None,
+                "needs_clarification": True,
+            }
+
+        # Compute confidence from similarity distances
+        confidence, avg_score = self._compute_confidence(chunks)
+
+        # If confidence is low and query is short, ask for clarification
+        if self._needs_clarification(question, confidence):
+            clarification = await self._generate_clarification(question)
+            return {
+                "answer": clarification,
+                "sources": [],
+                "confidence": confidence,
+                "avg_similarity_score": avg_score,
+                "needs_clarification": True,
             }
 
         # Build context and generate answer
@@ -95,6 +138,8 @@ class RAGPipeline:
         return {
             "answer": answer,
             "sources": unique_sources,
+            "confidence": confidence,
+            "avg_similarity_score": avg_score,
         }
 
     async def _search_chunks(
@@ -114,7 +159,8 @@ class RAGPipeline:
                 rows = await conn.fetch(
                     """
                     SELECT dc.chunk_text, dc.chunk_index,
-                           d.id AS doc_id, d.title, d.category, d.subcategory
+                           d.id AS doc_id, d.title, d.category, d.subcategory,
+                           (dc.embedding <=> $2) AS distance
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     WHERE d.category = ANY($1)
@@ -130,7 +176,8 @@ class RAGPipeline:
                 rows = await conn.fetch(
                     """
                     SELECT dc.chunk_text, dc.chunk_index,
-                           d.id AS doc_id, d.title, d.category, d.subcategory
+                           d.id AS doc_id, d.title, d.category, d.subcategory,
+                           (dc.embedding <=> $1) AS distance
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
                     ORDER BY dc.embedding <=> $1
@@ -174,6 +221,75 @@ class RAGPipeline:
                 "I encountered an error while processing your question. "
                 "Please try again, or contact your HOA administrator."
             )
+
+    @staticmethod
+    def _needs_clarification(question: str, confidence: str) -> bool:
+        """Determine if we should ask clarifying questions instead of answering."""
+        if confidence != "low":
+            return False
+        word_count = len(question.strip().split())
+        return word_count < 10
+
+    async def _generate_clarification(self, question: str) -> str:
+        """Generate clarifying questions when the query is too vague."""
+        categories = list(ROLE_ALLOWED_CATEGORIES.get("board_member") or
+                          ["Governing", "Meeting", "Maintenance", "Correspondence",
+                           "Financial", "Insurance", "Vendor"])
+        prompt = CLARIFICATION_PROMPT.format(
+            question=question,
+            categories=", ".join(categories),
+        )
+        try:
+            response = await asyncio.to_thread(
+                self.model.generate_content, prompt
+            )
+            return response.text
+        except Exception:
+            logger.exception("Failed to generate clarification")
+            return (
+                "I'm not sure I understand your question well enough to give "
+                "an accurate answer. Could you provide more details about what "
+                "you're looking for? For example, are you asking about HOA rules, "
+                "maintenance, financials, or meeting minutes?"
+            )
+
+    async def _check_admin_answers(
+        self, question_embedding: list[float]
+    ) -> dict | None:
+        """Check if an admin-approved FAQ answer matches the question."""
+        async with self.pool.acquire() as conn:
+            await register_vector(conn)
+            row = await conn.fetchrow(
+                """
+                SELECT id, answer, (embedding <=> $1) AS distance
+                FROM admin_answers
+                WHERE is_active = TRUE
+                ORDER BY embedding <=> $1
+                LIMIT 1
+                """,
+                question_embedding,
+            )
+
+        if row and row["distance"] < settings.admin_answer_threshold:
+            return dict(row)
+        return None
+
+    @staticmethod
+    def _compute_confidence(chunks: list[dict]) -> tuple[str, float]:
+        """Compute confidence level from chunk similarity distances."""
+        distances = [c["distance"] for c in chunks if c.get("distance") is not None]
+        if not distances:
+            return "none", 0.0
+
+        best = min(distances)
+        avg = sum(distances) / len(distances)
+
+        if best < settings.confidence_high_threshold:
+            return "high", round(avg, 4)
+        elif best < settings.confidence_medium_threshold:
+            return "medium", round(avg, 4)
+        else:
+            return "low", round(avg, 4)
 
     @staticmethod
     def _get_role_allowed_categories(role: str) -> list[str] | None:

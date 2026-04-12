@@ -44,6 +44,40 @@
     border-radius: 4px;
     margin: 0.15rem;
 }
+.confidence-badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    margin-top: 0.4rem;
+    font-weight: 600;
+}
+.confidence-high { background: #c6f6d5; color: #22543d; }
+.confidence-medium { background: #fefcbf; color: #744210; }
+.confidence-low { background: #fed7d7; color: #822727; }
+.confidence-none { background: #fed7d7; color: #822727; }
+.disclaimer {
+    font-size: 0.8rem;
+    color: #e53e3e;
+    margin-top: 0.3rem;
+    font-style: italic;
+}
+.feedback-buttons {
+    display: flex;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+.feedback-btn {
+    background: none;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #718096;
+}
+.feedback-btn:hover { background: #edf2f7; }
+.feedback-btn.selected { border-color: #2b6cb0; color: #2b6cb0; background: #ebf8ff; }
 .followups {
     display: flex;
     flex-wrap: wrap;
@@ -134,7 +168,7 @@ async function sendMessage() {
             body: JSON.stringify({ question }),
         });
         const data = await resp.json();
-        addMessage(data.answer, 'assistant', data.sources);
+        addMessage(data.answer, 'assistant', data.sources, data.confidence, data.audit_id, data.needs_clarification);
     } catch (err) {
         addMessage('Something went wrong. Please try again.', 'assistant');
     }
@@ -144,11 +178,19 @@ async function sendMessage() {
     messagesDiv.scrollTop = messagesDiv.scrollHeight;
 }
 
-function addMessage(text, role, sources) {
+function addMessage(text, role, sources, confidence, auditId, needsClarification) {
     const msg = document.createElement('div');
     msg.className = 'message ' + role;
 
     let html = '<div class="message-content">' + escapeHtml(text).replace(/\n/g, '<br>') + '</div>';
+
+    if (role === 'assistant' && confidence) {
+        const labels = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence', none: 'No matching sources' };
+        html += '<span class="confidence-badge confidence-' + confidence + '">' + (labels[confidence] || confidence) + '</span>';
+        if (confidence === 'low' || confidence === 'none') {
+            html += '<div class="disclaimer">This answer may not be accurate. Please verify with your HOA administrator.</div>';
+        }
+    }
 
     if (sources && sources.length > 0) {
         html += '<div class="sources">Sources: ';
@@ -158,8 +200,46 @@ function addMessage(text, role, sources) {
         html += '</div>';
     }
 
+    if (role === 'assistant' && needsClarification) {
+        // Extract question-like lines from the response to show as clickable chips
+        const lines = text.split('\n').filter(l => l.trim().endsWith('?'));
+        if (lines.length > 0) {
+            html += '<div class="followups">';
+            lines.slice(0, 3).forEach(q => {
+                const clean = q.replace(/^[\d\.\-\*]+\s*/, '').trim();
+                html += '<button class="followup-chip" onclick="askFollowup(\'' + escapeHtml(clean).replace(/'/g, "\\'") + '\')">' + escapeHtml(clean) + '</button>';
+            });
+            html += '</div>';
+        }
+    }
+
+    if (role === 'assistant' && auditId) {
+        msg.dataset.auditId = auditId;
+        html += '<div class="feedback-buttons">'
+            + '<button class="feedback-btn" onclick="sendFeedback(this, \'' + auditId + '\', \'positive\')" title="Helpful">&#128077;</button>'
+            + '<button class="feedback-btn" onclick="sendFeedback(this, \'' + auditId + '\', \'negative\')" title="Incorrect">&#128078;</button>'
+            + '</div>';
+    }
+
     msg.innerHTML = html;
     messagesDiv.appendChild(msg);
+}
+
+async function sendFeedback(btn, auditId, feedback) {
+    const buttons = btn.parentElement.querySelectorAll('.feedback-btn');
+    buttons.forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    buttons.forEach(b => b.disabled = true);
+
+    try {
+        await fetch('/api/chat/feedback', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audit_id: auditId, feedback }),
+        });
+    } catch (err) {
+        console.error('Failed to send feedback:', err);
+    }
 }
 
 function askFollowup(text) {
