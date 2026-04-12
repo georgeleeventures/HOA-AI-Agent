@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}HouseKeep AI - Dashboard{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ user.name or user.email }}</h1>
+
+<div class="flex gap-2" style="flex-wrap: wrap; margin-bottom: 2rem;">
+    <a href="/chat" class="card" style="flex: 1; min-width: 200px; text-decoration: none; color: inherit;">
+        <h3>Ask a Question</h3>
+        <p class="text-sm text-muted">Chat with HouseKeep AI about your HOA's rules, policies, and history.</p>
+    </a>
+    <a href="/documents" class="card" style="flex: 1; min-width: 200px; text-decoration: none; color: inherit;">
+        <h3>Browse Documents</h3>
+        <p class="text-sm text-muted">View all HOA documents organized by category.</p>
+    </a>
+    <a href="/maintenance" class="card" style="flex: 1; min-width: 200px; text-decoration: none; color: inherit;">
+        <h3>Maintenance History</h3>
+        <p class="text-sm text-muted">See a timeline of all maintenance work and repairs.</p>
+    </a>
+</div>
+
+<div class="card">
+    <h2>Sample Questions</h2>
+    <p class="text-sm text-muted mb-2">Click any question to ask HouseKeep AI:</p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.5rem;">
+        <a href="/chat?q=Can+I+install+a+satellite+dish+on+the+roof%3F" class="sample-q">Can I install a satellite dish on the roof?</a>
+        <a href="/chat?q=When+is+trash+pickup+day%3F" class="sample-q">When is trash pickup day?</a>
+        <a href="/chat?q=How+do+I+set+up+autopay+for+HOA+dues%3F" class="sample-q">How do I set up autopay for HOA dues?</a>
+        <a href="/chat?q=What+is+the+pet+policy%3F" class="sample-q">What is the pet policy?</a>
+        {% if user.role in ['board_member', 'admin'] %}
+        <a href="/chat?q=What+is+our+current+reserve+fund+balance%3F" class="sample-q">What is our current reserve fund balance?</a>
+        <a href="/chat?q=Summarize+the+last+board+meeting+minutes" class="sample-q">Summarize the last board meeting minutes</a>
+        <a href="/chat?q=Are+we+on+track+with+the+annual+budget%3F" class="sample-q">Are we on track with the annual budget?</a>
+        <a href="/chat?q=List+all+outstanding+maintenance+requests" class="sample-q">List all outstanding maintenance requests</a>
+        {% else %}
+        <a href="/chat?q=What+does+my+HOA+fee+cover%3F" class="sample-q">What does my HOA fee cover?</a>
+        <a href="/chat?q=When+is+the+next+board+meeting%3F" class="sample-q">When is the next board meeting?</a>
+        <a href="/chat?q=What+are+the+quiet+hours%3F" class="sample-q">What are the quiet hours?</a>
+        <a href="/chat?q=How+do+I+report+a+maintenance+issue%3F" class="sample-q">How do I report a maintenance issue?</a>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+.sample-q {
+    display: block;
+    padding: 0.6rem 0.8rem;
+    background: #ebf8ff;
+    border-radius: 6px;
+    color: #2b6cb0;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background 0.2s;
+}
+.sample-q:hover {
+    background: #bee3f8;
+}
+{% endblock %}

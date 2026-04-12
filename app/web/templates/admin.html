@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{% block title %}Admin - HouseKeep AI{% endblock %}
+
+{% block content %}
+<h1>Admin Panel</h1>
+
+<div class="card mb-2">
+    <h2>Add Resident</h2>
+    <form id="addForm" onsubmit="addResident(event)" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: flex-end;">
+        <div style="flex: 1; min-width: 180px;">
+            <label class="text-sm">Email</label>
+            <input type="email" id="newEmail" required placeholder="resident@email.com">
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+            <label class="text-sm">Name</label>
+            <input type="text" id="newName" required placeholder="Full name">
+        </div>
+        <div style="width: 100px;">
+            <label class="text-sm">Unit</label>
+            <input type="text" id="newUnit" placeholder="e.g. 2A">
+        </div>
+        <div style="width: 140px;">
+            <label class="text-sm">Role</label>
+            <select id="newRole">
+                <option value="resident">Resident</option>
+                <option value="board_member">Board Member</option>
+                <option value="admin">Admin</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary">Add</button>
+    </form>
+</div>
+
+<div class="card mb-2">
+    <h2>Residents</h2>
+    <div id="residentsList">
+        <p class="text-muted">Loading...</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Audit Log</h2>
+    <div id="auditLog" style="max-height: 400px; overflow-y: auto;">
+        <p class="text-muted">Loading...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadResidents() {
+    const resp = await fetch('/api/admin/audit?limit=1');
+    // We don't have a residents list endpoint, so load from audit for now
+    // TODO: add GET /api/admin/residents
+    document.getElementById('residentsList').innerHTML = '<p class="text-muted">Resident management loaded via form above. Full list endpoint coming soon.</p>';
+}
+
+async function addResident(e) {
+    e.preventDefault();
+    const body = {
+        email: document.getElementById('newEmail').value,
+        name: document.getElementById('newName').value,
+        unit: document.getElementById('newUnit').value || null,
+        role: document.getElementById('newRole').value,
+    };
+
+    const resp = await fetch('/api/admin/residents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+    });
+
+    if (resp.ok) {
+        document.getElementById('addForm').reset();
+        alert('Resident added successfully.');
+    } else {
+        const err = await resp.json();
+        alert('Error: ' + (err.detail || 'Failed to add resident'));
+    }
+}
+
+async function loadAudit() {
+    const resp = await fetch('/api/admin/audit?limit=50');
+    const data = await resp.json();
+    const container = document.getElementById('auditLog');
+
+    if (!data.audit_log || !data.audit_log.length) {
+        container.innerHTML = '<p class="text-muted">No activity yet.</p>';
+        return;
+    }
+
+    let html = '<table><thead><tr><th>Time</th><th>User</th><th>Channel</th><th>Action</th><th>Query</th></tr></thead><tbody>';
+    data.audit_log.forEach(entry => {
+        const time = new Date(entry.created_at).toLocaleString();
+        html += `<tr>
+            <td class="text-sm">${time}</td>
+            <td class="text-sm">${escapeHtml(entry.user_email)}</td>
+            <td><span class="badge badge-gray">${entry.channel}</span></td>
+            <td><span class="badge badge-blue">${entry.action}</span></td>
+            <td class="text-sm">${escapeHtml((entry.query || '').substring(0, 80))}</td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+}
+
+loadResidents();
+loadAudit();
+</script>
+{% endblock %}

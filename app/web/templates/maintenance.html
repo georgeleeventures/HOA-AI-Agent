@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Maintenance - HouseKeep AI{% endblock %}
+
+{% block extra_css %}
+.timeline-item {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-bottom: 1px solid #f7fafc;
+}
+.timeline-item:last-child { border-bottom: none; }
+.timeline-date {
+    width: 100px;
+    flex-shrink: 0;
+    text-align: right;
+    color: #718096;
+    font-size: 0.85rem;
+    padding-top: 0.15rem;
+}
+.timeline-content { flex: 1; }
+.status-reported { color: #e53e3e; }
+.status-in_progress { color: #d69e2e; }
+.status-completed { color: #38a169; }
+{% endblock %}
+
+{% block content %}
+<h1>Maintenance History</h1>
+
+<div class="card" id="maintenanceList">
+    <p class="text-muted">Loading maintenance records...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function loadMaintenance() {
+    const resp = await fetch('/api/maintenance?limit=100');
+    const data = await resp.json();
+    render(data.maintenance);
+}
+
+function render(items) {
+    const container = document.getElementById('maintenanceList');
+    if (!items.length) {
+        container.innerHTML = '<p class="text-muted">No maintenance records yet.</p>';
+        return;
+    }
+
+    let html = '';
+    items.forEach(item => {
+        const date = new Date(item.created_at).toLocaleDateString();
+        const statusClass = 'status-' + (item.status || 'reported');
+        html += `
+            <div class="timeline-item">
+                <div class="timeline-date">${date}</div>
+                <div class="timeline-content">
+                    <div style="font-weight: 500;">${escapeHtml(item.description || 'No description')}</div>
+                    <div class="text-sm mt-1">
+                        ${item.unit ? '<span class="badge badge-gray">Unit ' + escapeHtml(item.unit) + '</span>' : ''}
+                        ${item.issue_type ? '<span class="badge badge-blue">' + escapeHtml(item.issue_type) + '</span>' : ''}
+                        <span class="badge ${statusClass}">${item.status || 'reported'}</span>
+                        ${item.contractor ? '<span class="text-muted"> &middot; ' + escapeHtml(item.contractor) + '</span>' : ''}
+                        ${item.cost ? '<span class="text-muted"> &middot; $' + Number(item.cost).toFixed(2) + '</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+loadMaintenance();
+</script>
+{% endblock %}

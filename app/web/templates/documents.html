@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Documents - HouseKeep AI{% endblock %}
+
+{% block extra_css %}
+.doc-layout {
+    display: flex;
+    gap: 1.5rem;
+}
+.doc-sidebar {
+    width: 220px;
+    flex-shrink: 0;
+}
+.doc-main {
+    flex: 1;
+    min-width: 0;
+}
+.cat-link {
+    display: block;
+    padding: 0.5rem 0.75rem;
+    color: #4a5568;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    margin-bottom: 0.15rem;
+}
+.cat-link:hover { background: #edf2f7; }
+.cat-link.active { background: #ebf8ff; color: #2b6cb0; font-weight: 500; }
+.doc-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #f7fafc;
+}
+.doc-row:last-child { border-bottom: none; }
+.doc-row a { color: #2b6cb0; text-decoration: none; font-weight: 500; }
+.doc-row a:hover { text-decoration: underline; }
+.search-bar {
+    margin-bottom: 1rem;
+}
+@media (max-width: 768px) {
+    .doc-layout { flex-direction: column; }
+    .doc-sidebar { width: 100%; }
+}
+{% endblock %}
+
+{% block content %}
+<h1>Documents</h1>
+
+<div class="doc-layout">
+    <div class="doc-sidebar card">
+        <h3>Categories</h3>
+        <a href="/documents" class="cat-link {% if not active_category %}active{% endif %}">All Documents</a>
+        <a href="/documents?category=Governing" class="cat-link {% if active_category == 'Governing' %}active{% endif %}">Your HOA Rules</a>
+        <a href="/documents?category=Financial" class="cat-link {% if active_category == 'Financial' %}active{% endif %}">Financial Records</a>
+        <a href="/documents?category=Meeting" class="cat-link {% if active_category == 'Meeting' %}active{% endif %}">Past Meetings</a>
+        <a href="/documents?category=Maintenance" class="cat-link {% if active_category == 'Maintenance' %}active{% endif %}">Maintenance</a>
+        <a href="/documents?category=Insurance" class="cat-link {% if active_category == 'Insurance' %}active{% endif %}">Insurance</a>
+        <a href="/documents?category=Legal" class="cat-link {% if active_category == 'Legal' %}active{% endif %}">Legal</a>
+        <a href="/documents?category=Ownership" class="cat-link {% if active_category == 'Ownership' %}active{% endif %}">Ownership</a>
+        <a href="/documents?category=Vendor" class="cat-link {% if active_category == 'Vendor' %}active{% endif %}">Vendor Contracts</a>
+        <a href="/documents?category=Correspondence" class="cat-link {% if active_category == 'Correspondence' %}active{% endif %}">Correspondence</a>
+    </div>
+
+    <div class="doc-main">
+        <div class="search-bar">
+            <input type="text" id="searchInput" placeholder="Search documents..."
+                   onkeydown="if(event.key==='Enter')searchDocs()">
+        </div>
+
+        <div class="card" id="docList">
+            <p class="text-muted">Loading documents...</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const category = '{{ active_category or "" }}';
+const subcategory = '{{ active_subcategory or "" }}';
+
+async function loadDocs(search) {
+    let url = '/api/documents?limit=50';
+    if (category) url += '&category=' + encodeURIComponent(category);
+    if (subcategory) url += '&subcategory=' + encodeURIComponent(subcategory);
+    if (search) url += '&search=' + encodeURIComponent(search);
+
+    const resp = await fetch(url);
+    const data = await resp.json();
+    renderDocs(data.documents);
+}
+
+function renderDocs(docs) {
+    const container = document.getElementById('docList');
+    if (!docs.length) {
+        container.innerHTML = '<p class="text-muted">No documents found.</p>';
+        return;
+    }
+
+    let html = '';
+    docs.forEach(d => {
+        const date = new Date(d.created_at).toLocaleDateString();
+        html += `
+            <div class="doc-row">
+                <div>
+                    <a href="/documents/${d.id}">${escapeHtml(d.title || d.source_filename || 'Untitled')}</a>
+                    <div class="text-sm text-muted mt-1">
+                        <span class="badge badge-blue">${d.category}</span>
+                        <span class="badge badge-gray">${d.subcategory}</span>
+                        <span>${date}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    container.innerHTML = html;
+}
+
+function searchDocs() {
+    const q = document.getElementById('searchInput').value.trim();
+    loadDocs(q);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+loadDocs();
+</script>
+{% endblock %}
