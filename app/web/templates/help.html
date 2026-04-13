@@ -1,0 +1,358 @@
+{% extends "base.html" %}
+
+{% block title %}Help - HouseKeep{% endblock %}
+
+{% block extra_css %}
+.help-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 1.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.help-tab {
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: #718096;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.help-tab:hover { color: #2b6cb0; }
+.help-tab.active { color: #2b6cb0; border-bottom-color: #2b6cb0; font-weight: 600; }
+.help-content { display: none; }
+.help-content.active { display: block; }
+.help-section {
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 1rem;
+}
+.help-section h3 {
+    color: #2b6cb0;
+    font-size: 1.05rem;
+    margin-bottom: 0.75rem;
+}
+.help-section p {
+    font-size: 0.95rem;
+    color: #4a5568;
+    margin-bottom: 0.5rem;
+}
+.help-section ul, .help-section ol {
+    margin: 0.5rem 0 0.75rem 1.25rem;
+    font-size: 0.95rem;
+    color: #4a5568;
+}
+.help-section li {
+    margin-bottom: 0.3rem;
+    line-height: 1.5;
+}
+.help-example {
+    background: #f7fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.5rem 0;
+    font-size: 0.9rem;
+    color: #2b6cb0;
+    font-style: italic;
+}
+.help-tip {
+    background: #ebf8ff;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    color: #2c5282;
+}
+.help-warning {
+    background: #fffff0;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin: 0.75rem 0;
+    font-size: 0.9rem;
+    color: #975a16;
+}
+@media (max-width: 768px) {
+    .help-tabs { gap: 0; }
+    .help-tab { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+    .help-section { padding: 1rem; }
+}
+{% endblock %}
+
+{% block content %}
+<h1>Help &amp; User Guide</h1>
+
+<div class="help-tabs">
+    <button class="help-tab active" onclick="switchHelpTab('start')">Getting Started</button>
+    {% if user.role in ['board_member', 'admin'] %}
+    <button class="help-tab" onclick="switchHelpTab('board')">Board Members</button>
+    <button class="help-tab" onclick="switchHelpTab('secretary')">Secretary</button>
+    <button class="help-tab" onclick="switchHelpTab('treasurer')">Treasurer</button>
+    {% endif %}
+    <button class="help-tab" onclick="switchHelpTab('dashboard')">Web Dashboard</button>
+    <button class="help-tab" onclick="switchHelpTab('faq')">FAQ</button>
+</div>
+
+<!-- Getting Started -->
+<div class="help-content active" id="help-start">
+    <div class="help-section">
+        <h3>How to Ask a Question</h3>
+        <p>You can ask HouseKeep questions in two ways:</p>
+        <ol>
+            <li><strong>By email:</strong> Send your question to your HOA's HouseKeep email address. You'll get a reply within 1-3 minutes.</li>
+            <li><strong>On the web:</strong> Go to the <a href="/chat">Chat</a> page and type your question. You'll see the answer right away.</li>
+        </ol>
+        <div class="help-tip">No special formatting is needed. Just ask your question in plain English, the same way you'd ask a neighbor.</div>
+    </div>
+
+    <div class="help-section">
+        <h3>What You Can Ask About</h3>
+        <ul>
+            <li><strong>Rules &amp; policies</strong> &mdash; pet policies, satellite dishes, paint colors, quiet hours, rental rules, modification guidelines</li>
+            <li><strong>Schedules &amp; dates</strong> &mdash; trash pickup, board meetings, inspections, important deadlines</li>
+            <li><strong>Payments</strong> &mdash; HOA dues amount, how to set up autopay, payment due dates, what fees cover</li>
+            <li><strong>Maintenance</strong> &mdash; how to report issues, who to contact, what's covered by HOA fees</li>
+            <li><strong>Ownership info</strong> &mdash; ownership percentages, shared expense details, voting rights</li>
+        </ul>
+        <p>Example questions:</p>
+        <div class="help-example">"Can I install a mini-split AC on my balcony?"</div>
+        <div class="help-example">"When is trash pickup day?"</div>
+        <div class="help-example">"What is the pet policy?"</div>
+        <div class="help-example">"How do I set up autopay for HOA dues?"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Tips for Getting Good Answers</h3>
+        <ul>
+            <li><strong>Be specific</strong> &mdash; "Can I paint my front door red?" is better than "What are the rules?"</li>
+            <li><strong>One question per message</strong> works best for the most accurate answers</li>
+            <li><strong>Check the sources</strong> &mdash; HouseKeep shows which documents it used to find the answer</li>
+            <li><strong>It will say "I don't know"</strong> rather than make something up</li>
+        </ul>
+    </div>
+
+    <div class="help-section">
+        <h3>What HouseKeep Cannot Do</h3>
+        <div class="help-warning">HouseKeep is a reference tool. It answers questions but cannot take action on your behalf.</div>
+        <ul>
+            <li>Cannot make changes, approve requests, or take actions</li>
+            <li>Cannot give legal advice (but will show exact governing document text)</li>
+            <li>Will not respond when CC'd unless directly asked a question</li>
+            <li>Cannot access personal email &mdash; only the HOA's shared account</li>
+        </ul>
+    </div>
+</div>
+
+<!-- Board Members -->
+{% if user.role in ['board_member', 'admin'] %}
+<div class="help-content" id="help-board">
+    <div class="help-section">
+        <h3>Financial Queries</h3>
+        <p>As a board member, you can ask about:</p>
+        <ul>
+            <li>Reserve fund balance and projections</li>
+            <li>Budget vs. actual spending</li>
+            <li>Year-over-year cost comparisons for any vendor or category</li>
+            <li>Expense anomalies and trends</li>
+        </ul>
+        <div class="help-example">"What is our current reserve fund balance?"</div>
+        <div class="help-example">"Are we on track with the annual budget?"</div>
+        <div class="help-example">"What did we pay for plumbing repairs last year?"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Maintenance &amp; Operations</h3>
+        <ul>
+            <li>Review full maintenance history by unit or vendor</li>
+            <li>Check inspection dates and warranty status</li>
+            <li>Find outstanding requests and deferred maintenance</li>
+            <li>Look up contractor records and past work</li>
+        </ul>
+        <div class="help-example">"List all outstanding maintenance requests"</div>
+        <div class="help-example">"When was the last roof inspection?"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Using HouseKeep in Email Threads</h3>
+        <p><strong>CC HouseKeep on any email thread</strong> and it will silently track the conversation. It won't respond or interrupt unless you directly ask it a question.</p>
+        <p>Later, you can ask: <em>"What was discussed about the roof repair?"</em> and it will recall the thread.</p>
+        <div class="help-tip">Forward documents to HouseKeep to have them automatically categorized and filed. You'll get a confirmation like: "Filed as Insurance Policy Renewal, expires December 2025."</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Legal &amp; Insurance</h3>
+        <ul>
+            <li>Look up attorney statements and pending legal matters</li>
+            <li>Find insurance policy numbers, expiration dates, and coverage details</li>
+            <li>Check D&amp;O insurance and claims history</li>
+            <li>Review violations and compliance status</li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- Secretary -->
+{% if user.role in ['board_member', 'admin'] %}
+<div class="help-content" id="help-secretary">
+    <div class="help-section">
+        <h3>Meeting Notes</h3>
+        <p>Forward meeting notes to HouseKeep and it will:</p>
+        <ul>
+            <li>Automatically summarize the meeting</li>
+            <li>Extract action items and assignments</li>
+            <li>File the notes for future reference</li>
+        </ul>
+        <p>Anyone can later ask "What happened at the March board meeting?" and get a summary.</p>
+    </div>
+
+    <div class="help-section">
+        <h3>Preparing for Meetings</h3>
+        <div class="help-example">"What action items are still open from the last meeting?"</div>
+        <div class="help-example">"What decisions were tabled at the February meeting?"</div>
+        <div class="help-example">"Draft an agenda based on open items and recent discussions"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Automatic Record Keeping</h3>
+        <ul>
+            <li><strong>CC HouseKeep</strong> on important email threads to log them automatically</li>
+            <li><strong>Forward documents</strong> for instant categorization and filing</li>
+            <li>Ask <em>"What documents have been filed this month?"</em> to review recent additions</li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- Treasurer -->
+{% if user.role in ['board_member', 'admin'] %}
+<div class="help-content" id="help-treasurer">
+    <div class="help-section">
+        <h3>Track Expenses</h3>
+        <p>Forward invoices to HouseKeep for automatic categorization. Then query your spending:</p>
+        <div class="help-example">"What's total spend on plumbing in the past 2 years?"</div>
+        <div class="help-example">"Show me the budget vs. actual breakdown"</div>
+        <div class="help-example">"What was the biggest unexpected expense last year?"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Monitor the Budget</h3>
+        <ul>
+            <li>Check if you're on track with the annual budget</li>
+            <li>Find the largest recurring expenses</li>
+            <li>Identify expense anomalies and trends</li>
+            <li>Model scenarios like dues increases</li>
+        </ul>
+    </div>
+
+    <div class="help-section">
+        <h3>Plan Ahead</h3>
+        <div class="help-example">"What is the projected reserve fund balance in 3 years?"</div>
+        <div class="help-example">"Which contracts are up for renewal in the next 60 days?"</div>
+        <div class="help-example">"Compare landscaping costs year over year"</div>
+    </div>
+
+    <div class="help-section">
+        <h3>Vendor Management</h3>
+        <ul>
+            <li>Look up total spending with any vendor</li>
+            <li>Find past work history and cost comparisons</li>
+            <li>Check contract expiration dates and payment terms</li>
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+<!-- Web Dashboard -->
+<div class="help-content" id="help-dashboard">
+    <div class="help-section">
+        <h3>Chat</h3>
+        <p>The <a href="/chat">Chat</a> page lets you have a real-time conversation with HouseKeep. It works just like the email experience but with instant responses.</p>
+        <ul>
+            <li>Type your question and press Enter or click Send</li>
+            <li>Click any suggested question to ask it immediately</li>
+            <li>Each answer shows confidence level and source documents</li>
+            <li>Use the thumbs up/down buttons to rate answer quality</li>
+        </ul>
+    </div>
+
+    <div class="help-section">
+        <h3>Documents</h3>
+        <p>The <a href="/documents">Documents</a> page lets you browse all HOA documents organized by category:</p>
+        <ul>
+            <li><strong>Governing</strong> &mdash; CC&amp;Rs, bylaws, rules and regulations</li>
+            <li><strong>Financial</strong> &mdash; budgets, reserve studies, invoices</li>
+            <li><strong>Meeting</strong> &mdash; board meeting minutes and agendas</li>
+            <li><strong>Maintenance</strong> &mdash; inspection reports, work orders</li>
+            <li><strong>Insurance</strong> &mdash; policies, claims, certificates</li>
+            <li><strong>Vendor</strong> &mdash; contracts, proposals, invoices</li>
+        </ul>
+        <p>Use the search bar to find specific documents by keyword.</p>
+    </div>
+
+    <div class="help-section">
+        <h3>Maintenance</h3>
+        <p>The <a href="/maintenance">Maintenance</a> page shows a visual timeline of all maintenance work, repairs, and inspections. Each entry includes:</p>
+        <ul>
+            <li>Description of the work</li>
+            <li>Unit number and issue type</li>
+            <li>Status (reported, in progress, completed)</li>
+            <li>Contractor name and cost (when available)</li>
+        </ul>
+    </div>
+</div>
+
+<!-- FAQ -->
+<div class="help-content" id="help-faq">
+    <div class="help-section">
+        <h3>Is HouseKeep free?</h3>
+        <p>Yes. HouseKeep is completely free for all HOA residents and administrators. No subscription fees, no per-user charges.</p>
+    </div>
+    <div class="help-section">
+        <h3>Do I need to download an app?</h3>
+        <p>No. HouseKeep works entirely through email. The web dashboard is optional and accessed through your browser &mdash; no download required.</p>
+    </div>
+    <div class="help-section">
+        <h3>How quickly does it respond?</h3>
+        <p>Most questions are answered within 1-3 minutes by email. Web chat responses are near-instant. Response time may be slightly longer during initial setup.</p>
+    </div>
+    <div class="help-section">
+        <h3>What if it gives a wrong answer?</h3>
+        <p>HouseKeep always cites source documents so you can verify. If something is wrong, administrators can flag it in the audit log and provide corrections. HouseKeep will say "I don't know" rather than guess.</p>
+    </div>
+    <div class="help-section">
+        <h3>Can it access my personal email?</h3>
+        <p>No. HouseKeep only accesses the HOA's shared Gmail account. It never reads, sends, or modifies personal email.</p>
+    </div>
+    <div class="help-section">
+        <h3>Who can see my questions?</h3>
+        <p>Only HOA administrators can view the audit log of questions and answers. Your questions are not visible to other residents.</p>
+    </div>
+    <div class="help-section">
+        <h3>What file types does it understand?</h3>
+        <p>PDFs, Word documents, Excel spreadsheets, images (JPG, PNG), scanned documents, and photos of printed pages. Video is not supported.</p>
+    </div>
+    <div class="help-section">
+        <h3>Is there a question limit?</h3>
+        <p>No practical limit. A rate limit of 20 emails per hour prevents abuse, but normal usage will never hit it.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchHelpTab(name) {
+    document.querySelectorAll('.help-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.help-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('help-' + name).classList.add('active');
+    event.target.classList.add('active');
+}
+</script>
+{% endblock %}

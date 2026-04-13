@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Chat - HouseKeep AI{% endblock %}
+{% block title %}Chat - HouseKeep{% endblock %}
 
 {% block extra_css %}
 .chat-container {
@@ -114,11 +114,98 @@
     font-style: italic;
     padding: 0.5rem 0;
 }
+
+/* Empty state */
+.chat-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    text-align: center;
+    padding: 2rem 1rem;
+}
+.chat-empty-icon {
+    width: 56px;
+    height: 56px;
+    background: #ebf8ff;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    color: #2b6cb0;
+}
+.chat-empty h2 {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #1a202c;
+    margin-bottom: 0.5rem;
+}
+.chat-empty p {
+    color: #718096;
+    font-size: 0.95rem;
+    margin-bottom: 1.5rem;
+    max-width: 400px;
+}
+.suggestion-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+    max-width: 560px;
+    width: 100%;
+}
+.suggestion-chip {
+    display: block;
+    padding: 0.65rem 0.85rem;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    color: #2b6cb0;
+    font-size: 0.88rem;
+    text-align: left;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s, background 0.15s;
+    line-height: 1.4;
+}
+.suggestion-chip:hover {
+    border-color: #2b6cb0;
+    background: #ebf8ff;
+}
+@media (max-width: 768px) {
+    .chat-container { height: calc(100vh - 120px); }
+    .suggestion-grid { grid-template-columns: 1fr; }
+    .message { max-width: 95%; }
+}
 {% endblock %}
 
 {% block content %}
-<div class="chat-container">
-    <div class="chat-messages" id="messages"></div>
+<div class="chat-container" data-role="{{ user.role }}">
+    <div class="chat-empty" id="emptyState">
+        <div class="chat-empty-icon">&#128172;</div>
+        <h2>Ask HouseKeep anything</h2>
+        <p>Ask questions about your HOA's rules, policies, finances, maintenance, and more. Answers are sourced from your HOA's documents.</p>
+        <div class="suggestion-grid">
+            <button class="suggestion-chip" onclick="askSuggestion(this)">What is the pet policy?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">When is trash pickup day?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">Can I install a satellite dish?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">How do I report a maintenance issue?</button>
+            {% if user.role in ['board_member', 'admin'] %}
+            <button class="suggestion-chip" onclick="askSuggestion(this)">What is our reserve fund balance?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">Summarize the last board meeting</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">Are we on track with the budget?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">List outstanding maintenance requests</button>
+            {% else %}
+            <button class="suggestion-chip" onclick="askSuggestion(this)">What does my HOA fee cover?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">When is the next board meeting?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">What are the quiet hours?</button>
+            <button class="suggestion-chip" onclick="askSuggestion(this)">How do I set up autopay?</button>
+            {% endif %}
+        </div>
+    </div>
+    <div class="chat-messages" id="messages" style="display:none;"></div>
     <div class="loading" id="loading">HouseKeep is thinking...</div>
     <div class="chat-input">
         <input type="text" id="questionInput" placeholder="Ask anything about your HOA..."
@@ -131,9 +218,20 @@
 {% block scripts %}
 <script>
 const messagesDiv = document.getElementById('messages');
+const emptyState = document.getElementById('emptyState');
 const input = document.getElementById('questionInput');
 const loading = document.getElementById('loading');
 const sendBtn = document.getElementById('sendBtn');
+
+function hideEmptyState() {
+    emptyState.style.display = 'none';
+    messagesDiv.style.display = 'block';
+}
+
+function askSuggestion(btn) {
+    input.value = btn.textContent.trim();
+    sendMessage();
+}
 
 // Check for pre-filled question from URL
 const params = new URLSearchParams(window.location.search);
@@ -153,6 +251,8 @@ input.addEventListener('keydown', (e) => {
 async function sendMessage() {
     const question = input.value.trim();
     if (!question) return;
+
+    hideEmptyState();
 
     // Add user message
     addMessage(question, 'user');
@@ -201,7 +301,6 @@ function addMessage(text, role, sources, confidence, auditId, needsClarification
     }
 
     if (role === 'assistant' && needsClarification) {
-        // Extract question-like lines from the response to show as clickable chips
         const lines = text.split('\n').filter(l => l.trim().endsWith('?'));
         if (lines.length > 0) {
             html += '<div class="followups">';
