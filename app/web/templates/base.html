@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}HouseKeep AI{% endblock %}</title>
+    <title>{% block title %}HouseKeep{% endblock %}</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -20,12 +20,14 @@
             align-items: center;
             justify-content: space-between;
             height: 60px;
+            position: relative;
         }
         nav .logo {
             font-size: 1.25rem;
             font-weight: 700;
             color: #2b6cb0;
             text-decoration: none;
+            flex-shrink: 0;
         }
         nav .nav-links {
             display: flex;
@@ -50,12 +52,26 @@
             gap: 1rem;
             font-size: 0.9rem;
             color: #718096;
+            flex-shrink: 0;
         }
         nav .user-info a {
             color: #718096;
             text-decoration: none;
         }
         nav .user-info a:hover { color: #e53e3e; }
+        .hamburger {
+            display: none;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0.5rem;
+            flex-shrink: 0;
+        }
+        .hamburger svg {
+            width: 24px;
+            height: 24px;
+            color: #4a5568;
+        }
         .container {
             max-width: 1100px;
             margin: 0 auto;
@@ -138,22 +154,68 @@
         .flex { display: flex; }
         .gap-1 { gap: 0.5rem; }
         .gap-2 { gap: 1rem; }
+
+        /* Mobile nav */
         @media (max-width: 768px) {
             nav { padding: 0 1rem; }
             .container { padding: 1rem; }
-            nav .nav-links { gap: 0.75rem; }
+            .hamburger { display: block; }
+            nav .nav-links,
+            nav .user-info {
+                display: none;
+            }
+            nav.menu-open .nav-links,
+            nav.menu-open .user-info {
+                display: flex;
+            }
+            nav.menu-open {
+                flex-wrap: wrap;
+                height: auto;
+                padding-bottom: 0.75rem;
+            }
+            nav.menu-open .nav-links {
+                order: 3;
+                width: 100%;
+                flex-direction: column;
+                gap: 0;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 0.5rem;
+                margin-top: 0.5rem;
+            }
+            nav.menu-open .nav-links a {
+                padding: 0.6rem 0;
+                border-bottom: none;
+            }
+            nav.menu-open .user-info {
+                order: 4;
+                width: 100%;
+                padding-top: 0.5rem;
+                border-top: 1px solid #e2e8f0;
+                margin-top: 0.25rem;
+                justify-content: space-between;
+            }
         }
         {% block extra_css %}{% endblock %}
     </style>
 </head>
 <body>
+    {% if user and user.is_demo %}
+    <div style="background: #ebf8ff; color: #2b6cb0; text-align: center; padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 500; border-bottom: 1px solid #bee3f8;">
+        You're viewing a demo with sample data.
+        <a href="/logout" style="color: #2c5282; text-decoration: underline; margin-left: 0.5rem;">Exit demo</a>
+        <span style="margin: 0 0.25rem; color: #a0aec0;">|</span>
+        <a href="/login" style="color: #2c5282; text-decoration: underline;">Sign in with Google</a>
+    </div>
+    {% endif %}
+
     {% if user %}
-    <nav>
-        <a href="/" class="logo">HouseKeep AI</a>
+    <nav id="mainNav">
+        <a href="/" class="logo">HouseKeep</a>
         <div class="nav-links">
             <a href="/chat">Chat</a>
             <a href="/documents">Documents</a>
             <a href="/maintenance">Maintenance</a>
+            <a href="/help">Help</a>
             {% if user.role == 'admin' %}
             <a href="/admin">Admin</a>
             {% endif %}
@@ -162,6 +224,13 @@
             <span>{{ user.name or user.email }}</span>
             <a href="/logout">Sign out</a>
         </div>
+        <button class="hamburger" onclick="document.getElementById('mainNav').classList.toggle('menu-open')" aria-label="Menu">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
     </nav>
     {% endif %}
 

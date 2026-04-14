@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Admin - HouseKeep AI{% endblock %}
+{% block title %}Admin - HouseKeep{% endblock %}
 
 {% block extra_css %}
 .admin-tabs {
@@ -103,6 +103,7 @@
     <button class="admin-tab" onclick="switchTab('audit')">Audit Log</button>
     <button class="admin-tab" onclick="switchTab('faq')">FAQ / Answers</button>
     <button class="admin-tab" onclick="switchTab('metrics')">Metrics</button>
+    <button class="admin-tab" onclick="switchTab('help')">Help</button>
 </div>
 
 <!-- Residents Tab -->
@@ -229,6 +230,75 @@
         <div id="faqList">
             <p class="text-muted">Loading...</p>
         </div>
+    </div>
+</div>
+
+<!-- Admin Help Tab -->
+<div class="tab-content" id="tab-help">
+    <div class="card mb-2">
+        <h2>Administrator Guide</h2>
+        <p class="text-muted mb-2">Everything you need to manage HouseKeep for your HOA.</p>
+    </div>
+
+    <div class="card mb-2">
+        <h3 style="color: #2b6cb0;">Initial Setup</h3>
+        <ol style="margin: 0.5rem 0 0 1.25rem; font-size: 0.95rem; color: #4a5568; line-height: 1.8;">
+            <li>Connect your HOA's Gmail account (one-time, 5-minute process)</li>
+            <li>Wait for HouseKeep to ingest historical emails (1-2 hours for a medium inbox)</li>
+            <li>Add authorized residents using the <strong>Residents</strong> tab above</li>
+            <li>Share the HouseKeep email address with your HOA members</li>
+        </ol>
+    </div>
+
+    <div class="card mb-2">
+        <h3 style="color: #2b6cb0;">Managing Residents</h3>
+        <p style="font-size: 0.95rem; color: #4a5568; margin-bottom: 0.5rem;">Use the <strong>Residents</strong> tab to manage who can access HouseKeep:</p>
+        <ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.95rem; color: #4a5568; line-height: 1.8;">
+            <li><strong>Add new residents:</strong> Enter their email, name, unit, and role</li>
+            <li><strong>Role types:</strong> <em>Resident</em> (basic access), <em>Board Member</em> (financial/governance access), <em>Admin</em> (full access including this panel)</li>
+            <li><strong>Remove residents:</strong> When someone moves out, remove their email to revoke access</li>
+            <li>Only authorized emails can use HouseKeep &mdash; unauthorized senders receive a generic rejection</li>
+        </ul>
+    </div>
+
+    <div class="card mb-2">
+        <h3 style="color: #2b6cb0;">Reviewing the Audit Log</h3>
+        <p style="font-size: 0.95rem; color: #4a5568; margin-bottom: 0.5rem;">The <strong>Audit Log</strong> tab shows every question asked and answer given:</p>
+        <ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.95rem; color: #4a5568; line-height: 1.8;">
+            <li>Filter by channel (email/web), confidence level, date range, or keyword</li>
+            <li>Click any row to see the full question, response, cited documents, and response time</li>
+            <li><strong>Flag entries</strong> that need review or correction</li>
+            <li>Add <strong>admin notes</strong> to document your review findings</li>
+        </ul>
+    </div>
+
+    <div class="card mb-2">
+        <h3 style="color: #2b6cb0;">Creating FAQ Overrides</h3>
+        <p style="font-size: 0.95rem; color: #4a5568; margin-bottom: 0.5rem;">If HouseKeep gives a wrong or incomplete answer, you can create an authoritative override:</p>
+        <ol style="margin: 0.5rem 0 0 1.25rem; font-size: 0.95rem; color: #4a5568; line-height: 1.8;">
+            <li>Find the problematic entry in the Audit Log</li>
+            <li>Click <strong>"Create FAQ from This"</strong> in the detail view</li>
+            <li>Write the correct answer in the FAQ / Answers tab</li>
+            <li>Future similar questions will use your authoritative answer instead</li>
+        </ol>
+        <div style="background: #ebf8ff; border-radius: 6px; padding: 0.75rem 1rem; margin-top: 0.75rem; font-size: 0.9rem; color: #2c5282;">
+            You can also proactively add FAQ entries for common questions you know residents will ask.
+        </div>
+    </div>
+
+    <div class="card mb-2">
+        <h3 style="color: #2b6cb0;">Monitoring with Metrics</h3>
+        <p style="font-size: 0.95rem; color: #4a5568;">The <strong>Metrics</strong> tab shows usage statistics for the past 30 days: total questions, low-confidence rates, disputed answers, average response time, and FAQ hit rates. Use this to identify knowledge gaps and improve HouseKeep's coverage.</p>
+    </div>
+
+    <div class="card">
+        <h3 style="color: #2b6cb0;">If Something Goes Wrong</h3>
+        <ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.95rem; color: #4a5568; line-height: 1.8;">
+            <li><strong>Wrong answer:</strong> Flag it in the audit log, then create a FAQ override with the correct answer</li>
+            <li><strong>Missing documents:</strong> Forward the document to HouseKeep's email for automatic ingestion and filing</li>
+            <li><strong>Resident can't access:</strong> Check the Residents tab to make sure their email is listed and authorized</li>
+            <li><strong>Slow responses:</strong> Check the Metrics tab for response time trends; initial setup may be slower while documents are being processed</li>
+        </ul>
     </div>
 </div>
 
