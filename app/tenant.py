@@ -10,7 +10,7 @@ from app.database import get_pool
 logger = logging.getLogger(__name__)
 
 # Paths that don't require tenant resolution
-PUBLIC_PATHS = {"/", "/health", "/favicon.ico", "/signup", "/login", "/logout"}
+PUBLIC_PATHS = {"/", "/health", "/favicon.ico", "/signup", "/login", "/logout", "/demo"}
 WEBHOOK_PREFIX = "/webhooks/"
 PUBLIC_PREFIXES = ("/static", "/auth/", "/oauth/")
 
@@ -78,6 +78,10 @@ class TenantMiddleware(BaseHTTPMiddleware):
         """
         # Remove port
         hostname = host.split(":")[0]
+
+        # Bare IPv4 address has no subdomain — don't treat octets as DNS parts.
+        if all(p.isdigit() for p in hostname.split(".")) and hostname.count(".") == 3:
+            return None
 
         parts = hostname.split(".")
 
