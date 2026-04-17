@@ -17,25 +17,26 @@
 }
 .cat-link {
     display: block;
-    padding: 0.5rem 0.75rem;
-    color: #4a5568;
+    padding: 0.45rem 0.7rem;
+    color: var(--fg-muted);
     text-decoration: none;
-    border-radius: 6px;
-    font-size: 0.9rem;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
     margin-bottom: 0.15rem;
+    transition: background 0.15s, color 0.15s;
 }
-.cat-link:hover { background: #edf2f7; }
-.cat-link.active { background: #ebf8ff; color: #2b6cb0; font-weight: 500; }
+.cat-link:hover { background: var(--bg-sunken); color: var(--fg); }
+.cat-link.active { background: var(--accent-weak); color: var(--accent-weak-fg); font-weight: 500; }
 .doc-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.75rem 0;
-    border-bottom: 1px solid #f7fafc;
+    border-bottom: 1px solid var(--border);
 }
 .doc-row:last-child { border-bottom: none; }
-.doc-row a { color: #2b6cb0; text-decoration: none; font-weight: 500; }
-.doc-row a:hover { text-decoration: underline; }
+.doc-row a { color: var(--fg); text-decoration: none; font-weight: 500; }
+.doc-row a:hover { color: var(--accent); }
 .search-bar {
     margin-bottom: 1rem;
 }
