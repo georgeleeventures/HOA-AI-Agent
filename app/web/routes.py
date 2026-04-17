@@ -28,6 +28,21 @@ def _get_serializer() -> URLSafeSerializer:
     return URLSafeSerializer(settings.app_secret_key)
 
 
+def _cookie_secure(request: Request) -> bool:
+    """Whether the session cookie should be marked Secure for this request.
+
+    A Secure cookie is only sent back over HTTPS, so marking it Secure on
+    a plain-HTTP request silently drops the session on the first navigation.
+    We honor the X-Forwarded-Proto header set by our reverse proxy (Caddy).
+    """
+    if settings.domain == "localhost":
+        return False
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
+    if forwarded_proto:
+        return forwarded_proto == "https"
+    return request.url.scheme == "https"
+
+
 def get_current_user(request: Request) -> dict | None:
     """Read and verify the session cookie. Returns user dict or None."""
     cookie = request.cookies.get(SESSION_COOKIE)
@@ -159,7 +174,7 @@ async def oauth_callback(request: Request):
         SESSION_COOKIE,
         cookie_value,
         httponly=True,
-        secure=settings.domain != "localhost",
+        secure=_cookie_secure(request),
         samesite="lax",
         max_age=86400 * 7,  # 7 days
     )
@@ -183,7 +198,7 @@ async def demo_mode(request: Request):
         SESSION_COOKIE,
         cookie_value,
         httponly=True,
-        secure=settings.domain != "localhost",
+        secure=_cookie_secure(request),
         samesite="lax",
         max_age=3600,  # 1 hour
     )

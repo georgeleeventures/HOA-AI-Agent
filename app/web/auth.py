@@ -42,6 +42,21 @@ def _get_serializer():
     return URLSafeSerializer(settings.app_secret_key)
 
 
+def _cookie_secure(request: Request) -> bool:
+    """Whether the session cookie should be marked Secure for this request.
+
+    Marking the cookie Secure on a plain-HTTP request silently drops the
+    session on the first navigation. Honor X-Forwarded-Proto (Caddy) and
+    fall back to the request scheme.
+    """
+    if settings.domain == "localhost":
+        return False
+    forwarded_proto = request.headers.get("x-forwarded-proto", "").lower()
+    if forwarded_proto:
+        return forwarded_proto == "https"
+    return request.url.scheme == "https"
+
+
 @router.get("/auth/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Passwordless login page (email + code flow)."""
@@ -116,7 +131,7 @@ async def send_code(body: SendCodeRequest):
 
 
 @router.post("/auth/verify-code")
-async def verify_code(body: VerifyCodeRequest):
+async def verify_code(body: VerifyCodeRequest, request: Request):
     """Verify a 6-digit code and create a session."""
     email = body.email.lower().strip()
     code = body.code.strip()
@@ -176,7 +191,7 @@ async def verify_code(body: VerifyCodeRequest):
         SESSION_COOKIE,
         cookie_value,
         httponly=True,
-        secure=settings.domain != "localhost",
+        secure=_cookie_secure(request),
         samesite="lax",
         max_age=86400 * 7,
     )
