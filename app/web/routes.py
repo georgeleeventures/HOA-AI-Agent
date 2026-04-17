@@ -134,7 +134,7 @@ async def oauth_callback(request: Request):
 
     if row is None:
         return templates.TemplateResponse(
-            "login.html",
+            "landing.html",
             {
                 "request": request,
                 "error": "Your email is not authorized. Contact your HOA administrator to be added.",
@@ -162,6 +162,30 @@ async def oauth_callback(request: Request):
         secure=settings.domain != "localhost",
         samesite="lax",
         max_age=86400 * 7,  # 7 days
+    )
+    return response
+
+
+@router.get("/demo")
+async def demo_mode(request: Request):
+    """Enter demo mode with a synthetic user session."""
+    demo_user = {
+        "id": "demo",
+        "email": "demo@housekeep.click",
+        "name": "Alex Rivera",
+        "unit": "101",
+        "role": "admin",
+        "is_demo": True,
+    }
+    response = RedirectResponse("/", status_code=302)
+    cookie_value = _get_serializer().dumps(demo_user)
+    response.set_cookie(
+        SESSION_COOKIE,
+        cookie_value,
+        httponly=True,
+        secure=settings.domain != "localhost",
+        samesite="lax",
+        max_age=3600,  # 1 hour
     )
     return response
 
@@ -229,6 +253,16 @@ async def maintenance_page(request: Request):
         return RedirectResponse("/login")
     return templates.TemplateResponse(
         "maintenance.html", {"request": request, "user": user}
+    )
+
+
+@router.get("/help", response_class=HTMLResponse)
+async def help_page(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login")
+    return templates.TemplateResponse(
+        "help.html", {"request": request, "user": user}
     )
 
 

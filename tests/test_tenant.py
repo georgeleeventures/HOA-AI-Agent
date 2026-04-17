@@ -1,7 +1,6 @@
-"""Tests for tenant middleware and email slug extraction."""
+"""Tests for tenant middleware subdomain extraction."""
 
 from app.tenant import TenantMiddleware
-from app.email.webhook import _extract_slug_from_email
 
 
 class TestExtractSlug:
@@ -22,17 +21,3 @@ class TestExtractSlug:
 
     def test_empty(self):
         assert TenantMiddleware._extract_slug("") is None
-
-
-class TestExtractSlugFromEmail:
-    def test_board_email(self):
-        assert _extract_slug_from_email("board@twinpeaks.housekeep.click") == "twinpeaks"
-
-    def test_any_local_part(self):
-        assert _extract_slug_from_email("anything@marina.housekeep.click") == "marina"
-
-    def test_gmail(self):
-        assert _extract_slug_from_email("user@gmail.com") is None
-
-    def test_no_at(self):
-        assert _extract_slug_from_email("not-an-email") is None

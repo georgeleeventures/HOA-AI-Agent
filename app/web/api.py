@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from app.database import get_pool
 from app.tenant import get_hoa_id
 from app.web.routes import get_current_user
+from app.web.demo_data import DEMO_DOCUMENTS, DEMO_MAINTENANCE, match_demo_response
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,9 @@ def _require_admin(request: Request) -> dict:
 @router.post("/chat")
 async def chat(request: Request, body: ChatRequest):
     user = _require_auth(request)
+
+    if user.get("is_demo"):
+        return match_demo_response(body.question)
 
     from app.knowledge.embeddings import EmbeddingService
     from app.knowledge.rag import RAGPipeline
@@ -127,6 +131,10 @@ async def chat(request: Request, body: ChatRequest):
 @router.post("/chat/feedback")
 async def submit_feedback(request: Request, body: FeedbackRequest):
     user = _require_auth(request)
+
+    if user.get("is_demo"):
+        return {"status": "ok"}
+
     pool = await get_pool()
 
     if body.feedback not in ("positive", "negative"):
@@ -178,6 +186,17 @@ async def list_documents(
     user = _require_auth(request)
     hoa_id = user.get("hoa_id") or get_hoa_id(request)
 
+    if user.get("is_demo"):
+        docs = DEMO_DOCUMENTS
+        if category:
+            docs = [d for d in docs if d["category"] == category]
+        if subcategory:
+            docs = [d for d in docs if d["subcategory"] == subcategory]
+        if search:
+            s = search.lower()
+            docs = [d for d in docs if s in d["title"].lower()]
+        return {"documents": docs[offset:offset + limit]}
+
     from app.documents.store import DocumentStore
 
     pool = await get_pool()
@@ -197,6 +216,12 @@ async def list_documents(
 async def get_document(request: Request, doc_id: str):
     user = _require_auth(request)
     hoa_id = user.get("hoa_id") or get_hoa_id(request)
+
+    if user.get("is_demo"):
+        for d in DEMO_DOCUMENTS:
+            if d["id"] == doc_id:
+                return {**d, "content": "This is a demo document. In a live environment, the full document content would be displayed here."}
+        raise HTTPException(status_code=404, detail="Document not found")
 
     from app.documents.store import DocumentStore
 
@@ -218,6 +243,10 @@ async def list_maintenance(
 ):
     user = _require_auth(request)
     hoa_id = user.get("hoa_id") or get_hoa_id(request)
+
+    if user.get("is_demo"):
+        return {"maintenance": DEMO_MAINTENANCE[offset:offset + limit]}
+
     pool = await get_pool()
 
     async with pool.acquire() as conn:
