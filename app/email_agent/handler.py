@@ -39,7 +39,7 @@ class EmailHandler:
         self.doc_store = DocumentStore(pool)
         self.embedding_service = embedding_service
 
-    async def handle_incoming_email(self, gmail_id: str) -> None:
+    async def handle_incoming_email(self, gmail_id: str, hoa_id: str) -> None:
         """Main entry point for processing an incoming email."""
         try:
             raw_message = await self.gmail.fetch_message(gmail_id)
@@ -50,7 +50,7 @@ class EmailHandler:
 
         # Verify sender
         auth_results = parse_auth_results(parsed.get("headers", []))
-        resident = await verify_sender(self.pool, parsed["sender"], auth_results)
+        resident = await verify_sender(self.pool, parsed["sender"], auth_results, hoa_id)
 
         if resident is None:
             logger.info("Unauthorized email from %s", parsed["sender"])
@@ -67,6 +67,7 @@ class EmailHandler:
                 query=parsed.get("subject", ""),
                 response_summary="Unauthorized response sent",
                 documents_cited=[],
+                hoa_id=hoa_id,
             )
             return
 
@@ -80,15 +81,15 @@ class EmailHandler:
         )
 
         if intent == "document_forward":
-            await self._handle_document_forward(parsed, resident)
+            await self._handle_document_forward(parsed, resident, hoa_id)
         elif intent == "thread_cc":
-            await self._handle_thread_cc(parsed, resident)
+            await self._handle_thread_cc(parsed, resident, hoa_id)
         elif intent == "correction":
-            await self._handle_correction(parsed, resident)
+            await self._handle_correction(parsed, resident, hoa_id)
         else:
-            await self._handle_question(parsed, resident)
+            await self._handle_question(parsed, resident, hoa_id)
 
-    async def _handle_question(self, parsed: dict, resident: dict) -> None:
+    async def _handle_question(self, parsed: dict, resident: dict, hoa_id: str) -> None:
         """Handle a direct question via email."""
         question = parsed.get("body_text", "").strip()
         if not question:
@@ -98,6 +99,7 @@ class EmailHandler:
         result = await self.rag.query(
             question=question,
             user_role=resident["role"],
+            hoa_id=hoa_id,
         )
         response_time_ms = int((time.monotonic() - start) * 1000)
 
@@ -136,13 +138,14 @@ class EmailHandler:
             is_flagged=is_flagged,
             flag_reason="low_confidence" if is_flagged else None,
             response_time_ms=response_time_ms,
+            hoa_id=hoa_id,
         )
 
-    async def _handle_document_forward(self, parsed: dict, resident: dict) -> None:
+    async def _handle_document_forward(self, parsed: dict, resident: dict, hoa_id: str) -> None:
         """Handle a forwarded document (email with attachments)."""
         attachments = parsed.get("attachments", [])
         if not attachments:
-            await self._handle_question(parsed, resident)
+            await self._handle_question(parsed, resident, hoa_id)
             return
 
         filed_docs = []
@@ -170,12 +173,12 @@ class EmailHandler:
                 doc_data["file_path"] = file_path
 
                 # Store document
-                doc_id = await self.doc_store.store_document(doc_data)
+                doc_id = await self.doc_store.store_document(doc_data, hoa_id)
 
                 # Generate embeddings
                 if doc_data.get("content"):
                     await self.embedding_service.embed_document(
-                        self.pool, doc_id, doc_data["content"]
+                        self.pool, doc_id, doc_data["content"], hoa_id
                     )
 
                 filed_docs.append(
@@ -207,16 +210,18 @@ class EmailHandler:
             query=f"Forwarded {len(attachments)} attachment(s)",
             response_summary=confirmation[:500],
             documents_cited=[],
+            hoa_id=hoa_id,
         )
 
-    async def _handle_thread_cc(self, parsed: dict, resident: dict) -> None:
+    async def _handle_thread_cc(self, parsed: dict, resident: dict, hoa_id: str) -> None:
         """Silently track an email thread the agent is CC'd on."""
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO emails (gmail_id, thread_id, sender, recipients, subject,
-                                    body_text, has_attachments, is_processed, received_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8)
+                                    body_text, has_attachments, is_processed, received_at,
+                                    hoa_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $9)
                 ON CONFLICT (gmail_id) DO NOTHING
                 """,
                 parsed["gmail_id"],
@@ -227,6 +232,7 @@ class EmailHandler:
                 parsed.get("body_text"),
                 bool(parsed.get("attachments")),
                 parsed.get("received_at"),
+                hoa_id,
             )
 
         await self._log_audit(
@@ -236,6 +242,7 @@ class EmailHandler:
             query=parsed.get("subject", ""),
             response_summary="Silently tracked (no response sent)",
             documents_cited=[],
+            hoa_id=hoa_id,
         )
 
     def _classify_intent(self, parsed: dict) -> str:
@@ -276,7 +283,7 @@ class EmailHandler:
 
         return "question"
 
-    async def _handle_correction(self, parsed: dict, resident: dict) -> None:
+    async def _handle_correction(self, parsed: dict, resident: dict, hoa_id: str) -> None:
         """Handle a user disputing a previous answer."""
         thread_id = parsed.get("thread_id")
         correction_text = parsed.get("body_text", "").strip()
@@ -291,6 +298,7 @@ class EmailHandler:
                         flag_reason = 'user_disputed'
                     WHERE thread_id = $1
                       AND user_email = $2
+                      AND hoa_id = $3
                       AND action = 'question'
                       AND is_flagged = FALSE
                     ORDER BY created_at DESC
@@ -298,6 +306,7 @@ class EmailHandler:
                     """,
                     thread_id,
                     resident["email"],
+                    hoa_id,
                 )
         except Exception:
             logger.exception("Failed to flag original audit entry")
@@ -325,6 +334,7 @@ class EmailHandler:
             thread_id=thread_id,
             is_flagged=True,
             flag_reason="user_disputed",
+            hoa_id=hoa_id,
         )
 
     async def _log_audit(
@@ -342,6 +352,7 @@ class EmailHandler:
         is_flagged: bool = False,
         flag_reason: str | None = None,
         response_time_ms: int | None = None,
+        hoa_id: str | None = None,
     ) -> str | None:
         """Write an entry to the audit log. Returns the audit entry ID."""
         try:
@@ -352,8 +363,9 @@ class EmailHandler:
                                            response_summary, full_response,
                                            confidence, avg_similarity_score,
                                            thread_id, is_flagged, flag_reason,
-                                           response_time_ms, documents_cited)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                           response_time_ms, documents_cited,
+                                           hoa_id)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                     RETURNING id
                     """,
                     user_email,
@@ -369,6 +381,7 @@ class EmailHandler:
                     flag_reason,
                     response_time_ms,
                     json.dumps(documents_cited),
+                    hoa_id,
                 )
                 return str(row["id"]) if row else None
         except Exception:

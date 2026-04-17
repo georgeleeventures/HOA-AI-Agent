@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
 from app.database import get_pool
+from app.tenant import get_hoa_id
 from app.web.routes import get_current_user
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,8 @@ async def chat(request: Request, body: ChatRequest):
     from app.knowledge.embeddings import EmbeddingService
     from app.knowledge.rag import RAGPipeline
 
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
+
     pool = await get_pool()
     embedding_service = EmbeddingService()
     rag = RAGPipeline(pool, embedding_service)
@@ -74,6 +77,7 @@ async def chat(request: Request, body: ChatRequest):
     result = await rag.query(
         question=body.question,
         user_role=user.get("role", "resident"),
+        hoa_id=hoa_id,
     )
     response_time_ms = int((time.monotonic() - start) * 1000)
 
@@ -90,8 +94,9 @@ async def chat(request: Request, body: ChatRequest):
                                        response_summary, full_response,
                                        confidence, avg_similarity_score,
                                        is_flagged, flag_reason,
-                                       response_time_ms, documents_cited)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                                       response_time_ms, documents_cited,
+                                       hoa_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
                 RETURNING id
                 """,
                 user["email"],
@@ -109,6 +114,7 @@ async def chat(request: Request, body: ChatRequest):
                     {"title": s["document_title"], "category": s["category"]}
                     for s in result.get("sources", [])
                 ]),
+                hoa_id,
             )
             audit_id = str(row["id"]) if row else None
     except Exception:
@@ -126,11 +132,14 @@ async def submit_feedback(request: Request, body: FeedbackRequest):
     if body.feedback not in ("positive", "negative"):
         raise HTTPException(status_code=400, detail="Feedback must be 'positive' or 'negative'")
 
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
+
     async with pool.acquire() as conn:
         # Verify the audit entry exists and belongs to this user
         row = await conn.fetchrow(
-            "SELECT id, user_email FROM audit_log WHERE id = $1",
+            "SELECT id, user_email FROM audit_log WHERE id = $1 AND ($2::uuid IS NULL OR hoa_id = $2)",
             body.audit_id,
+            hoa_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Audit entry not found")
@@ -147,10 +156,11 @@ async def submit_feedback(request: Request, body: FeedbackRequest):
                 SET is_flagged = TRUE,
                     flag_reason = 'user_disputed',
                     admin_notes = COALESCE(admin_notes || E'\n', '') || $1
-                WHERE id = $2
+                WHERE id = $2 AND ($3::uuid IS NULL OR hoa_id = $3)
                 """,
                 notes,
                 body.audit_id,
+                hoa_id,
             )
 
     return {"status": "ok"}
@@ -166,12 +176,14 @@ async def list_documents(
     offset: int = 0,
 ):
     user = _require_auth(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
 
     from app.documents.store import DocumentStore
 
     pool = await get_pool()
     store = DocumentStore(pool)
     docs = await store.list_documents(
+        hoa_id=hoa_id,
         category=category,
         subcategory=subcategory,
         search=search,
@@ -184,12 +196,13 @@ async def list_documents(
 @router.get("/documents/{doc_id}")
 async def get_document(request: Request, doc_id: str):
     user = _require_auth(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
 
     from app.documents.store import DocumentStore
 
     pool = await get_pool()
     store = DocumentStore(pool)
-    doc = await store.get_document(doc_id)
+    doc = await store.get_document(doc_id, hoa_id)
 
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -204,6 +217,7 @@ async def list_maintenance(
     offset: int = 0,
 ):
     user = _require_auth(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -212,9 +226,11 @@ async def list_maintenance(
             SELECT id, unit, description, issue_type, status, photos,
                    contractor, cost, reported_by, created_at, updated_at
             FROM maintenance_log
+            WHERE ($1::uuid IS NULL OR hoa_id = $1)
             ORDER BY created_at DESC
-            LIMIT $1 OFFSET $2
+            LIMIT $2 OFFSET $3
             """,
+            hoa_id,
             limit,
             offset,
         )
@@ -232,21 +248,23 @@ async def list_maintenance(
 
 @router.post("/admin/residents")
 async def add_resident(request: Request, body: ResidentCreate):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
         try:
             row = await conn.fetchrow(
                 """
-                INSERT INTO residents (email, name, unit, role)
-                VALUES ($1, $2, $3, $4)
+                INSERT INTO residents (email, name, unit, role, hoa_id)
+                VALUES ($1, $2, $3, $4, $5)
                 RETURNING id, email, name, unit, role
                 """,
                 body.email.lower().strip(),
                 body.name,
                 body.unit,
                 body.role,
+                hoa_id,
             )
             result = dict(row)
             result["id"] = str(result["id"])
@@ -260,12 +278,15 @@ async def add_resident(request: Request, body: ResidentCreate):
 
 @router.delete("/admin/residents/{resident_id}")
 async def remove_resident(request: Request, resident_id: str):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
         result = await conn.execute(
-            "DELETE FROM residents WHERE id = $1", resident_id
+            "DELETE FROM residents WHERE id = $1 AND ($2::uuid IS NULL OR hoa_id = $2)",
+            resident_id,
+            hoa_id,
         )
 
     if result == "DELETE 0":
@@ -275,7 +296,8 @@ async def remove_resident(request: Request, resident_id: str):
 
 @router.put("/admin/residents/{resident_id}")
 async def update_resident(request: Request, resident_id: str, body: ResidentUpdate):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     valid_roles = {"resident", "board_member", "admin"}
@@ -286,10 +308,11 @@ async def update_resident(request: Request, resident_id: str, body: ResidentUpda
         result = await conn.execute(
             """
             UPDATE residents SET role = $1, updated_at = NOW()
-            WHERE id = $2
+            WHERE id = $2 AND ($3::uuid IS NULL OR hoa_id = $3)
             """,
             body.role,
             resident_id,
+            hoa_id,
         )
 
     if result == "UPDATE 0":
@@ -319,12 +342,18 @@ async def get_audit_log(
     limit: int = 50,
     offset: int = 0,
 ):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     conditions = []
     params = []
     idx = 1
+
+    # Always scope by hoa_id
+    conditions.append(f"(${idx}::uuid IS NULL OR hoa_id = ${idx})")
+    params.append(hoa_id)
+    idx += 1
 
     if channel:
         conditions.append(f"channel = ${idx}")
@@ -392,7 +421,8 @@ async def get_audit_log(
 
 @router.get("/admin/audit/{audit_id}")
 async def get_audit_detail(request: Request, audit_id: str):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -403,9 +433,10 @@ async def get_audit_detail(request: Request, audit_id: str):
                    confidence, avg_similarity_score, thread_id,
                    is_flagged, flag_reason, admin_notes,
                    reviewed_by, reviewed_at, response_time_ms, created_at
-            FROM audit_log WHERE id = $1
+            FROM audit_log WHERE id = $1 AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             audit_id,
+            hoa_id,
         )
 
     if not row:
@@ -421,6 +452,7 @@ async def get_audit_detail(request: Request, audit_id: str):
 @router.put("/admin/audit/{audit_id}/flag")
 async def flag_audit_entry(request: Request, audit_id: str, body: FlagRequest):
     user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -429,12 +461,13 @@ async def flag_audit_entry(request: Request, audit_id: str, body: FlagRequest):
             UPDATE audit_log
             SET is_flagged = $1, flag_reason = $2,
                 reviewed_by = $3, reviewed_at = NOW()
-            WHERE id = $4
+            WHERE id = $4 AND ($5::uuid IS NULL OR hoa_id = $5)
             """,
             body.is_flagged,
             body.flag_reason or ("admin_flagged" if body.is_flagged else None),
             user["email"],
             audit_id,
+            hoa_id,
         )
 
     if result == "UPDATE 0":
@@ -445,6 +478,7 @@ async def flag_audit_entry(request: Request, audit_id: str, body: FlagRequest):
 @router.put("/admin/audit/{audit_id}/notes")
 async def update_audit_notes(request: Request, audit_id: str, body: NotesRequest):
     user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -452,11 +486,12 @@ async def update_audit_notes(request: Request, audit_id: str, body: NotesRequest
             """
             UPDATE audit_log
             SET admin_notes = $1, reviewed_by = $2, reviewed_at = NOW()
-            WHERE id = $3
+            WHERE id = $3 AND ($4::uuid IS NULL OR hoa_id = $4)
             """,
             body.admin_notes,
             user["email"],
             audit_id,
+            hoa_id,
         )
 
     if result == "UPDATE 0":
@@ -469,7 +504,8 @@ async def update_audit_notes(request: Request, audit_id: str, body: NotesRequest
 
 @router.get("/admin/answers")
 async def list_admin_answers(request: Request):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -478,8 +514,10 @@ async def list_admin_answers(request: Request):
             SELECT id, question_pattern, answer, source_audit_id,
                    created_by, updated_by, is_active, created_at, updated_at
             FROM admin_answers
+            WHERE ($1::uuid IS NULL OR hoa_id = $1)
             ORDER BY created_at DESC
-            """
+            """,
+            hoa_id,
         )
 
     results = []
@@ -496,6 +534,7 @@ async def list_admin_answers(request: Request):
 @router.post("/admin/answers")
 async def create_admin_answer(request: Request, body: AdminAnswerCreate):
     user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
 
     from app.knowledge.embeddings import EmbeddingService
 
@@ -503,7 +542,7 @@ async def create_admin_answer(request: Request, body: AdminAnswerCreate):
     embedding_service = EmbeddingService()
 
     # Generate embedding for the question pattern
-    embedding = await embedding_service.generate_embedding(body.question_pattern)
+    embedding = await embedding_service.generate_embedding(body.question_pattern, hoa_id=hoa_id)
 
     async with pool.acquire() as conn:
         from pgvector.asyncpg import register_vector
@@ -512,8 +551,8 @@ async def create_admin_answer(request: Request, body: AdminAnswerCreate):
         row = await conn.fetchrow(
             """
             INSERT INTO admin_answers (question_pattern, answer, embedding,
-                                        source_audit_id, created_by)
-            VALUES ($1, $2, $3, $4, $5)
+                                        source_audit_id, created_by, hoa_id)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id, question_pattern, answer, created_by, created_at
             """,
             body.question_pattern,
@@ -521,6 +560,7 @@ async def create_admin_answer(request: Request, body: AdminAnswerCreate):
             embedding,
             body.source_audit_id,
             user["email"],
+            hoa_id,
         )
 
     result = dict(row)
@@ -531,6 +571,7 @@ async def create_admin_answer(request: Request, body: AdminAnswerCreate):
 @router.put("/admin/answers/{answer_id}")
 async def update_admin_answer(request: Request, answer_id: str, body: AdminAnswerUpdate):
     user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
 
     from app.knowledge.embeddings import EmbeddingService
 
@@ -538,7 +579,9 @@ async def update_admin_answer(request: Request, answer_id: str, body: AdminAnswe
 
     async with pool.acquire() as conn:
         existing = await conn.fetchrow(
-            "SELECT id FROM admin_answers WHERE id = $1", answer_id
+            "SELECT id FROM admin_answers WHERE id = $1 AND ($2::uuid IS NULL OR hoa_id = $2)",
+            answer_id,
+            hoa_id,
         )
         if not existing:
             raise HTTPException(status_code=404, detail="Admin answer not found")
@@ -547,17 +590,18 @@ async def update_admin_answer(request: Request, answer_id: str, body: AdminAnswe
             await conn.execute(
                 """
                 UPDATE admin_answers SET answer = $1, updated_by = $2, updated_at = NOW()
-                WHERE id = $3
+                WHERE id = $3 AND ($4::uuid IS NULL OR hoa_id = $4)
                 """,
                 body.answer,
                 user["email"],
                 answer_id,
+                hoa_id,
             )
 
         if body.question_pattern:
             # Re-embed the new question pattern
             embedding_service = EmbeddingService()
-            embedding = await embedding_service.generate_embedding(body.question_pattern)
+            embedding = await embedding_service.generate_embedding(body.question_pattern, hoa_id=hoa_id)
 
             from pgvector.asyncpg import register_vector
             await register_vector(conn)
@@ -567,12 +611,13 @@ async def update_admin_answer(request: Request, answer_id: str, body: AdminAnswe
                 UPDATE admin_answers
                 SET question_pattern = $1, embedding = $2,
                     updated_by = $3, updated_at = NOW()
-                WHERE id = $4
+                WHERE id = $4 AND ($5::uuid IS NULL OR hoa_id = $5)
                 """,
                 body.question_pattern,
                 embedding,
                 user["email"],
                 answer_id,
+                hoa_id,
             )
 
     return {"status": "updated"}
@@ -581,16 +626,18 @@ async def update_admin_answer(request: Request, answer_id: str, body: AdminAnswe
 @router.delete("/admin/answers/{answer_id}")
 async def deactivate_admin_answer(request: Request, answer_id: str):
     user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
         result = await conn.execute(
             """
             UPDATE admin_answers SET is_active = FALSE, updated_by = $1, updated_at = NOW()
-            WHERE id = $2
+            WHERE id = $2 AND ($3::uuid IS NULL OR hoa_id = $3)
             """,
             user["email"],
             answer_id,
+            hoa_id,
         )
 
     if result == "UPDATE 0":
@@ -603,7 +650,8 @@ async def deactivate_admin_answer(request: Request, answer_id: str):
 
 @router.get("/admin/metrics")
 async def get_metrics(request: Request, days: int = 30):
-    _require_admin(request)
+    user = _require_admin(request)
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
 
     async with pool.acquire() as conn:
@@ -611,8 +659,13 @@ async def get_metrics(request: Request, days: int = 30):
 
         # Total questions
         total_questions = await conn.fetchval(
-            "SELECT COUNT(*) FROM audit_log WHERE action = 'question' AND created_at > NOW() - $1::interval",
+            """
+            SELECT COUNT(*) FROM audit_log
+            WHERE action = 'question' AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
+            """,
             interval,
+            hoa_id,
         )
 
         # Low confidence count
@@ -621,8 +674,10 @@ async def get_metrics(request: Request, days: int = 30):
             SELECT COUNT(*) FROM audit_log
             WHERE action = 'question' AND confidence IN ('none', 'low')
               AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             interval,
+            hoa_id,
         )
 
         # Disputed answers
@@ -631,8 +686,10 @@ async def get_metrics(request: Request, days: int = 30):
             SELECT COUNT(*) FROM audit_log
             WHERE flag_reason = 'user_disputed'
               AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             interval,
+            hoa_id,
         )
 
         # Avg response time
@@ -641,8 +698,10 @@ async def get_metrics(request: Request, days: int = 30):
             SELECT ROUND(AVG(response_time_ms))::integer FROM audit_log
             WHERE response_time_ms IS NOT NULL
               AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             interval,
+            hoa_id,
         )
 
         # By channel
@@ -650,9 +709,11 @@ async def get_metrics(request: Request, days: int = 30):
             """
             SELECT channel, COUNT(*) as count FROM audit_log
             WHERE action = 'question' AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             GROUP BY channel ORDER BY count DESC
             """,
             interval,
+            hoa_id,
         )
 
         # FAQ hit rate
@@ -660,8 +721,10 @@ async def get_metrics(request: Request, days: int = 30):
             """
             SELECT COUNT(*) FROM audit_log
             WHERE action = 'question' AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             interval,
+            hoa_id,
         )
         faq_hits = await conn.fetchval(
             """
@@ -669,8 +732,10 @@ async def get_metrics(request: Request, days: int = 30):
             WHERE action = 'question'
               AND documents_cited::text LIKE '%FAQ%'
               AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             """,
             interval,
+            hoa_id,
         )
         faq_hit_rate = round((faq_hits / faq_total * 100), 1) if faq_total > 0 else 0
 
@@ -680,9 +745,11 @@ async def get_metrics(request: Request, days: int = 30):
             SELECT id, query, confidence, created_at FROM audit_log
             WHERE confidence IN ('none', 'low') AND action = 'question'
               AND created_at > NOW() - $1::interval
+              AND ($2::uuid IS NULL OR hoa_id = $2)
             ORDER BY created_at DESC LIMIT 20
             """,
             interval,
+            hoa_id,
         )
 
     return {

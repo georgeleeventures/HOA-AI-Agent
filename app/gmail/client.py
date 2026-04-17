@@ -215,11 +215,13 @@ class GmailClient:
         return [addr.lower().strip() for _, addr in addresses if addr]
 
     def _parse_date(self, date_str: str) -> datetime | None:
-        """Parse an email date header into a datetime."""
+        """Parse an email date header into a timezone-aware datetime."""
         if not date_str:
             return None
         try:
             parsed = email.utils.parsedate_to_datetime(date_str)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
             return parsed.astimezone(timezone.utc)
         except (ValueError, TypeError):
             logger.warning("Failed to parse date: %s", date_str)

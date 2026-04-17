@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 
 import asyncpg
 import vertexai
@@ -11,22 +12,48 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
-    """Split text into overlapping word-based chunks."""
-    words = text.split()
-    if not words:
+def chunk_text(text: str, chunk_size: int = 2000, overlap_sentences: int = 2) -> list[str]:
+    """Split text into overlapping chunks at sentence boundaries.
+
+    Args:
+        text: Document text to chunk.
+        chunk_size: Target chunk size in characters.
+        overlap_sentences: Number of sentences to overlap between chunks.
+    """
+    if not text or not text.strip():
         return []
 
+    # Split by sentence boundaries
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    if not sentences:
+        return [text.strip()] if text.strip() else []
+
     chunks = []
-    start = 0
-    while start < len(words):
-        end = start + chunk_size
-        chunk = " ".join(words[start:end])
-        chunks.append(chunk)
-        start = end - overlap
-        # Avoid tiny trailing chunks
-        if start >= len(words):
-            break
+    current_sentences: list[str] = []
+    current_length = 0
+
+    for sentence in sentences:
+        sentence = sentence.strip()
+        if not sentence:
+            continue
+
+        if current_length + len(sentence) > chunk_size and current_sentences:
+            chunks.append(" ".join(current_sentences))
+            # Keep last N sentences for overlap
+            current_sentences = (
+                current_sentences[-overlap_sentences:]
+                if len(current_sentences) >= overlap_sentences
+                else current_sentences[:]
+            )
+            current_length = sum(len(s) for s in current_sentences) + max(len(current_sentences) - 1, 0)
+
+        current_sentences.append(sentence)
+        current_length += len(sentence) + 1
+
+    if current_sentences:
+        last_chunk = " ".join(current_sentences)
+        if not chunks or last_chunk != chunks[-1]:
+            chunks.append(last_chunk)
 
     return chunks
 
@@ -62,7 +89,7 @@ class EmbeddingService:
         return all_embeddings
 
     async def embed_document(
-        self, pool: asyncpg.Pool, document_id: str, text: str
+        self, pool: asyncpg.Pool, document_id: str, text: str, hoa_id: str
     ) -> int:
         """Chunk text, embed each chunk, and store in document_chunks.
         Returns the number of chunks created."""
@@ -82,13 +109,14 @@ class EmbeddingService:
                 await conn.execute(
                     """
                     INSERT INTO document_chunks
-                        (document_id, chunk_text, chunk_index, embedding)
-                    VALUES ($1, $2, $3, $4)
+                        (document_id, chunk_text, chunk_index, embedding, hoa_id)
+                    VALUES ($1, $2, $3, $4, $5)
                     """,
                     document_id,
                     chunk,
                     idx,
                     embedding,
+                    hoa_id,
                 )
 
         logger.info(

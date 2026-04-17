@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 
 import asyncpg
 
@@ -96,7 +97,7 @@ class IngestionPipeline:
             parsed.get("body_text"),
             bool(parsed.get("attachments")),
             True,
-            parsed.get("received_at"),
+            (parsed.get("received_at") or datetime.now(timezone.utc)).replace(tzinfo=None),
         )
 
         if row:
