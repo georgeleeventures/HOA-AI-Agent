@@ -53,8 +53,9 @@ async def index(request: Request):
         return templates.TemplateResponse(
             "index.html", {"request": request, "user": user}
         )
+    # Logged-out visitors see the marketing landing page
     return templates.TemplateResponse(
-        "login.html", {"request": request}
+        "landing.html", {"request": request}
     )
 
 
