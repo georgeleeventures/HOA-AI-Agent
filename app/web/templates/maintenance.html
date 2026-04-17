@@ -7,21 +7,23 @@
     display: flex;
     gap: 1rem;
     padding: 1rem 0;
-    border-bottom: 1px solid #f7fafc;
+    border-bottom: 1px solid var(--border);
 }
 .timeline-item:last-child { border-bottom: none; }
 .timeline-date {
     width: 100px;
     flex-shrink: 0;
     text-align: right;
-    color: #718096;
-    font-size: 0.85rem;
+    color: var(--fg-muted);
+    font-size: 12px;
     padding-top: 0.15rem;
+    font-variant-numeric: tabular-nums;
 }
 .timeline-content { flex: 1; }
-.status-reported { color: #e53e3e; }
-.status-in_progress { color: #d69e2e; }
-.status-completed { color: #38a169; }
+.timeline-content > div:first-child { font-weight: 500; color: var(--fg); }
+.status-reported { background: var(--danger-weak); color: var(--danger); }
+.status-in_progress { background: var(--warn-weak); color: var(--warn); }
+.status-completed { background: var(--success-weak); color: var(--success); }
 {% endblock %}
 
 {% block content %}

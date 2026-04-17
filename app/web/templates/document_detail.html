@@ -4,7 +4,7 @@
 
 {% block content %}
 <div style="margin-bottom: 1rem;">
-    <a href="/documents" style="color: #2b6cb0; text-decoration: none;">&larr; Back to Documents</a>
+    <a href="/documents" class="text-sm" style="color: var(--fg-muted); text-decoration: none;">&larr; Back to Documents</a>
 </div>
 
 <div class="card">
@@ -30,8 +30,8 @@
         </div>
     </div>
 
-    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 1rem 0;">
+    <hr>
 
-    <div style="white-space: pre-wrap; font-size: 0.95rem; line-height: 1.7;">{{ doc.content or 'No text content available.' }}</div>
+    <div style="white-space: pre-wrap; font-size: 14px; line-height: 1.7; color: var(--fg);">{{ doc.content or 'No text content available.' }}</div>
 </div>
 {% endblock %}

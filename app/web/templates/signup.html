@@ -3,92 +3,140 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Create your HOA — HouseKeep</title>
+    <title>Create your HOA &mdash; HouseKeep</title>
+    {% include "_theme.html" %}
     <style>
-        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            background: #f5f7fa;
-            margin: 0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #1a202c;
+            padding: 1.5rem;
         }
+        .auth-shell {
+            width: 100%;
+            max-width: 460px;
+            position: relative;
+        }
+        .auth-toggle { position: absolute; top: -48px; right: 0; }
         .card {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 480px;
+            background: var(--bg-elev);
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
         }
-        h1 { margin: 0 0 8px; font-size: 28px; color: #2b6cb0; }
-        p.sub { margin: 0 0 28px; color: #4a5568; font-size: 14px; }
-        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #2d3748; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 15px;
-            margin-bottom: 16px;
+        .auth-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
         }
-        input:focus { outline: none; border-color: #2b6cb0; }
-        .slug-row { display: flex; align-items: center; gap: 4px; }
-        .slug-row input { flex: 1; margin-bottom: 16px; }
-        .slug-row .suffix { color: #718096; font-size: 14px; padding: 12px 0; }
-        .hint { font-size: 12px; color: #718096; margin: -12px 0 12px; }
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #2b6cb0;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
+        .auth-logo-mark {
+            width: 30px;
+            height: 30px;
+            background: var(--accent);
+            color: var(--accent-fg);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .auth-logo-text {
+            font-size: 17px;
             font-weight: 600;
-            cursor: pointer;
+            color: var(--fg);
+            letter-spacing: -0.01em;
         }
-        button:hover { background: #2c5282; }
-        button:disabled { background: #a0aec0; cursor: not-allowed; }
-        .message { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-        .message.success { background: #c6f6d5; color: #22543d; }
-        .message.error { background: #fed7d7; color: #742a2a; }
-        .link { color: #2b6cb0; text-decoration: none; font-size: 14px; }
-        .link:hover { text-decoration: underline; }
-        .footer { text-align: center; margin-top: 20px; font-size: 13px; color: #718096; }
+        h1 {
+            margin: 0.75rem 0 0.35rem;
+            font-size: 22px;
+            font-weight: 600;
+            color: var(--fg);
+            letter-spacing: -0.02em;
+        }
+        p.sub {
+            margin: 0 0 1.5rem;
+            color: var(--fg-muted);
+            font-size: 13px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.4rem;
+            color: var(--fg-muted);
+        }
+        .card input { margin-bottom: 1rem; }
+        .hint { font-size: 12px; color: var(--fg-subtle); margin: -0.75rem 0 1rem; }
+        .card button {
+            width: 100%;
+            height: 42px;
+            background: var(--accent);
+            color: var(--accent-fg);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s;
+            font-family: inherit;
+        }
+        .card button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        .card button:disabled { background: var(--fg-subtle); border-color: var(--fg-subtle); cursor: not-allowed; }
+        .message { padding: 0.6rem 0.85rem; border-radius: var(--radius); margin-bottom: 1rem; font-size: 13px; }
+        .message.success { background: var(--success-weak); color: var(--success); border: 1px solid var(--border); }
+        .message.error { background: var(--danger-weak); color: var(--danger); border: 1px solid var(--danger); }
+        .link { color: var(--accent); text-decoration: none; font-size: 13px; }
+        .link:hover { color: var(--accent-hover); }
+        .footer { text-align: center; margin-top: 1rem; font-size: 12px; color: var(--fg-muted); }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>Create your HOA</h1>
-        <p class="sub">Set up your HOA on HouseKeep in under a minute.</p>
-
-        <div id="message"></div>
-
-        <div id="form">
-            <label for="hoa_name">HOA name</label>
-            <input type="text" id="hoa_name" placeholder="150 Twin Peaks HOA" oninput="autoSlug()">
-
-            <label for="hoa_slug">URL slug</label>
-            <div class="slug-row">
-                <input type="text" id="hoa_slug" placeholder="twin-peaks">
+    <div class="auth-shell">
+        <button class="theme-toggle auth-toggle" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle light/dark">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+        </button>
+        <div class="card">
+            <div class="auth-logo">
+                <div class="auth-logo-mark">H</div>
+                <div class="auth-logo-text">HouseKeep</div>
             </div>
-            <div class="hint">Lowercase letters, numbers, and hyphens only.</div>
+            <h1>Create your HOA</h1>
+            <p class="sub">Set up your HOA on HouseKeep in under a minute.</p>
 
-            <label for="admin_email">Your email (admin)</label>
-            <input type="email" id="admin_email" placeholder="you@example.com">
+            <div id="message"></div>
 
-            <label for="admin_name">Your name</label>
-            <input type="text" id="admin_name" placeholder="Optional">
+            <div id="form">
+                <label for="hoa_name">HOA name</label>
+                <input type="text" id="hoa_name" placeholder="150 Twin Peaks HOA" oninput="autoSlug()">
 
-            <button id="submit-btn" onclick="createHoa()">Create HOA</button>
-        </div>
+                <label for="hoa_slug">URL slug</label>
+                <input type="text" id="hoa_slug" placeholder="twin-peaks">
+                <div class="hint">Lowercase letters, numbers, and hyphens only.</div>
 
-        <div class="footer">
-            Already have an HOA? <a class="link" href="/auth/login">Sign in →</a>
+                <label for="admin_email">Your email (admin)</label>
+                <input type="email" id="admin_email" placeholder="you@example.com">
+
+                <label for="admin_name">Your name</label>
+                <input type="text" id="admin_name" placeholder="Optional">
+
+                <button id="submit-btn" onclick="createHoa()">Create HOA</button>
+            </div>
+
+            <div class="footer">
+                Already have an HOA? <a class="link" href="/auth/login">Sign in &rarr;</a>
+            </div>
         </div>
     </div>
 
@@ -134,7 +182,7 @@
                 if (resp.ok) {
                     document.getElementById("form").style.display = "none";
                     showMessage(
-                        `${data.message} <br><br><a class="link" href="${data.next_step}">Continue to sign in →</a>`,
+                        `${data.message} <br><br><a class="link" href="${data.next_step}">Continue to sign in &rarr;</a>`,
                         "success"
                     );
                 } else {

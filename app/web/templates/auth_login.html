@@ -3,96 +3,162 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign in — HouseKeep</title>
+    <title>Sign in &mdash; HouseKeep</title>
+    {% include "_theme.html" %}
     <style>
-        * { box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-            background: #f5f7fa;
-            margin: 0;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: #1a202c;
+            padding: 1.5rem;
         }
+        .auth-shell {
+            width: 100%;
+            max-width: 400px;
+            position: relative;
+        }
+        .auth-toggle { position: absolute; top: -48px; right: 0; }
         .card {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
-            width: 100%;
-            max-width: 420px;
+            background: var(--bg-elev);
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
         }
-        h1 { margin: 0 0 8px; font-size: 28px; color: #2b6cb0; }
-        p.sub { margin: 0 0 28px; color: #4a5568; font-size: 14px; }
-        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #2d3748; }
-        input {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            font-size: 15px;
-            margin-bottom: 16px;
-            transition: border 0.15s;
+        .auth-logo {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
         }
-        input:focus { outline: none; border-color: #2b6cb0; }
-        button {
-            width: 100%;
-            padding: 12px;
-            background: #2b6cb0;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 15px;
+        .auth-logo-mark {
+            width: 30px;
+            height: 30px;
+            background: var(--accent);
+            color: var(--accent-fg);
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+        .auth-logo-text {
+            font-size: 17px;
             font-weight: 600;
+            color: var(--fg);
+            letter-spacing: -0.01em;
+        }
+        p.sub {
+            margin: 0 0 1.5rem;
+            color: var(--fg-muted);
+            font-size: 13px;
+        }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 0.4rem;
+            color: var(--fg-muted);
+        }
+        .card input {
+            margin-bottom: 0.9rem;
+        }
+        .card button {
+            width: 100%;
+            height: 42px;
+            background: var(--accent);
+            color: var(--accent-fg);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: background 0.15s, border-color 0.15s;
+            font-family: inherit;
         }
-        button:hover { background: #2c5282; }
-        button:disabled { background: #a0aec0; cursor: not-allowed; }
-        .divider { text-align: center; color: #a0aec0; font-size: 13px; margin: 20px 0; }
+        .card button:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+        .card button:disabled { background: var(--fg-subtle); border-color: var(--fg-subtle); cursor: not-allowed; }
+        .divider {
+            text-align: center;
+            color: var(--fg-subtle);
+            font-size: 12px;
+            margin: 1.25rem 0 1rem;
+            position: relative;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            width: 42%;
+            height: 1px;
+            background: var(--border);
+        }
+        .divider::before { left: 0; }
+        .divider::after { right: 0; }
         .google-btn {
-            background: white;
-            color: #2d3748;
-            border: 1px solid #e2e8f0;
+            background: var(--bg-elev) !important;
+            color: var(--fg) !important;
+            border: 1px solid var(--border) !important;
         }
-        .google-btn:hover { background: #f7fafc; }
-        .message { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
-        .message.success { background: #c6f6d5; color: #22543d; }
-        .message.error { background: #fed7d7; color: #742a2a; }
-        .link { color: #2b6cb0; text-decoration: none; font-size: 14px; }
-        .link:hover { text-decoration: underline; }
-        .footer { text-align: center; margin-top: 20px; font-size: 13px; color: #718096; }
+        .google-btn:hover { background: var(--bg-sunken) !important; border-color: var(--border-strong) !important; }
+        .message {
+            padding: 0.6rem 0.85rem;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+            font-size: 13px;
+        }
+        .message.success { background: var(--success-weak); color: var(--success); border: 1px solid var(--border); }
+        .message.error { background: var(--danger-weak); color: var(--danger); border: 1px solid var(--danger); }
+        .link { color: var(--accent); text-decoration: none; font-size: 13px; }
+        .link:hover { color: var(--accent-hover); }
+        .footer { text-align: center; margin-top: 1rem; font-size: 12px; color: var(--fg-muted); }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>HouseKeep</h1>
-        <p class="sub">Sign in to your HOA dashboard</p>
-
-        <div id="message"></div>
-
-        <div id="step-email">
-            <label for="email">Email address</label>
-            <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
-            <button id="send-btn" onclick="sendCode()">Send login code</button>
-        </div>
-
-        <div id="step-code" style="display:none">
-            <label for="code">6-digit code</label>
-            <input type="text" id="code" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
-            <button id="verify-btn" onclick="verifyCode()">Verify and sign in</button>
-            <div class="footer" style="margin-top:12px">
-                <a class="link" href="#" onclick="goBack();return false;">← Use a different email</a>
+    <div class="auth-shell">
+        <button class="theme-toggle auth-toggle" onclick="toggleTheme()" aria-label="Toggle theme" title="Toggle light/dark">
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="4"/>
+                <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+            </svg>
+        </button>
+        <div class="card">
+            <div class="auth-logo">
+                <div class="auth-logo-mark">H</div>
+                <div class="auth-logo-text">HouseKeep</div>
             </div>
-        </div>
+            <p class="sub">Sign in to your HOA dashboard</p>
 
-        <div class="divider">— or —</div>
-        <button class="google-btn" onclick="window.location='/login'">Continue with Google</button>
+            <div id="message"></div>
 
-        <div class="footer">
-            <a class="link" href="/signup">Don't have an account? Create an HOA →</a>
+            <div id="step-email">
+                <label for="email">Email address</label>
+                <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+                <button id="send-btn" onclick="sendCode()">Send login code</button>
+            </div>
+
+            <div id="step-code" style="display:none">
+                <label for="code">6-digit code</label>
+                <input type="text" id="code" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+                <button id="verify-btn" onclick="verifyCode()">Verify and sign in</button>
+                <div class="footer" style="margin-top:0.75rem">
+                    <a class="link" href="#" onclick="goBack();return false;">&larr; Use a different email</a>
+                </div>
+            </div>
+
+            <div class="divider">or</div>
+            <button class="google-btn" onclick="window.location='/login'">Continue with Google</button>
+
+            <div class="footer">
+                <a class="link" href="/signup">Don't have an account? Create an HOA &rarr;</a>
+            </div>
         </div>
     </div>
 
