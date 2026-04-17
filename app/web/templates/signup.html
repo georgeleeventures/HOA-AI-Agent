@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create your HOA — HouseKeep</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a202c;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 480px;
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; color: #2b6cb0; }
+        p.sub { margin: 0 0 28px; color: #4a5568; font-size: 14px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #2d3748; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            margin-bottom: 16px;
+        }
+        input:focus { outline: none; border-color: #2b6cb0; }
+        .slug-row { display: flex; align-items: center; gap: 4px; }
+        .slug-row input { flex: 1; margin-bottom: 16px; }
+        .slug-row .suffix { color: #718096; font-size: 14px; padding: 12px 0; }
+        .hint { font-size: 12px; color: #718096; margin: -12px 0 12px; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #2b6cb0;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { background: #2c5282; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
+        .message { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+        .message.success { background: #c6f6d5; color: #22543d; }
+        .message.error { background: #fed7d7; color: #742a2a; }
+        .link { color: #2b6cb0; text-decoration: none; font-size: 14px; }
+        .link:hover { text-decoration: underline; }
+        .footer { text-align: center; margin-top: 20px; font-size: 13px; color: #718096; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Create your HOA</h1>
+        <p class="sub">Set up your HOA on HouseKeep in under a minute.</p>
+
+        <div id="message"></div>
+
+        <div id="form">
+            <label for="hoa_name">HOA name</label>
+            <input type="text" id="hoa_name" placeholder="150 Twin Peaks HOA" oninput="autoSlug()">
+
+            <label for="hoa_slug">URL slug</label>
+            <div class="slug-row">
+                <input type="text" id="hoa_slug" placeholder="twin-peaks">
+            </div>
+            <div class="hint">Lowercase letters, numbers, and hyphens only.</div>
+
+            <label for="admin_email">Your email (admin)</label>
+            <input type="email" id="admin_email" placeholder="you@example.com">
+
+            <label for="admin_name">Your name</label>
+            <input type="text" id="admin_name" placeholder="Optional">
+
+            <button id="submit-btn" onclick="createHoa()">Create HOA</button>
+        </div>
+
+        <div class="footer">
+            Already have an HOA? <a class="link" href="/auth/login">Sign in →</a>
+        </div>
+    </div>
+
+    <script>
+        function slugify(text) {
+            return (text || "").toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "")
+                .slice(0, 50);
+        }
+
+        let manualSlug = false;
+        document.getElementById("hoa_slug").addEventListener("input", () => manualSlug = true);
+
+        function autoSlug() {
+            if (manualSlug) return;
+            const name = document.getElementById("hoa_name").value;
+            document.getElementById("hoa_slug").value = slugify(name);
+        }
+
+        async function createHoa() {
+            const hoa_name = document.getElementById("hoa_name").value.trim();
+            const hoa_slug = document.getElementById("hoa_slug").value.trim();
+            const admin_email = document.getElementById("admin_email").value.trim();
+            const admin_name = document.getElementById("admin_name").value.trim();
+
+            if (!hoa_name || !admin_email) {
+                showMessage("Please fill in HOA name and your email.", "error");
+                return;
+            }
+
+            const btn = document.getElementById("submit-btn");
+            btn.disabled = true;
+            btn.textContent = "Creating...";
+
+            try {
+                const resp = await fetch("/signup", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({hoa_name, hoa_slug, admin_email, admin_name})
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    document.getElementById("form").style.display = "none";
+                    showMessage(
+                        `${data.message} <br><br><a class="link" href="${data.next_step}">Continue to sign in →</a>`,
+                        "success"
+                    );
+                } else {
+                    showMessage(data.detail || "Something went wrong", "error");
+                    btn.disabled = false;
+                    btn.textContent = "Create HOA";
+                }
+            } catch (e) {
+                showMessage("Network error. Try again.", "error");
+                btn.disabled = false;
+                btn.textContent = "Create HOA";
+            }
+        }
+
+        function showMessage(text, type) {
+            document.getElementById("message").innerHTML =
+                text ? `<div class="message ${type}">${text}</div>` : "";
+        }
+    </script>
+</body>
+</html>

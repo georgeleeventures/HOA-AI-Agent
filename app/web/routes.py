@@ -9,6 +9,7 @@ from itsdangerous import URLSafeSerializer
 
 from app.config import settings
 from app.database import get_pool
+from app.tenant import get_hoa_id
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ async def index(request: Request):
         return templates.TemplateResponse(
             "index.html", {"request": request, "user": user}
         )
+    # Logged-out visitors see the marketing landing page
     return templates.TemplateResponse(
         "landing.html", {"request": request}
     )
@@ -114,14 +116,18 @@ async def oauth_callback(request: Request):
     user_info = user_resp.json()
     user_email = user_info.get("email", "").lower().strip()
 
-    # Check if user is authorized
+    # HOA is derived from the user's account (residents table), not the URL
     pool = await get_pool()
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             """
-            SELECT id, email, name, unit, role
-            FROM residents
-            WHERE email = $1 AND is_authorized = TRUE
+            SELECT r.id, r.email, r.name, r.unit, r.role, r.hoa_id,
+                   h.slug AS hoa_slug, h.name AS hoa_name
+            FROM residents r
+            JOIN hoas h ON r.hoa_id = h.id
+            WHERE r.email = $1 AND r.is_authorized = TRUE
+            ORDER BY r.created_at ASC
+            LIMIT 1
             """,
             user_email,
         )
@@ -131,17 +137,20 @@ async def oauth_callback(request: Request):
             "landing.html",
             {
                 "request": request,
-                "error": "Your email is not authorized for this HOA. Contact your HOA administrator.",
+                "error": "Your email is not authorized. Contact your HOA administrator to be added.",
             },
         )
 
-    # Create session
+    # Create session with hoa_id from the resident record
     session_data = {
         "id": str(row["id"]),
         "email": row["email"],
         "name": row["name"] or user_info.get("name", ""),
         "unit": row["unit"],
         "role": row["role"],
+        "hoa_id": str(row["hoa_id"]),
+        "hoa_slug": row["hoa_slug"],
+        "hoa_name": row["hoa_name"],
     }
 
     response = RedirectResponse("/", status_code=302)

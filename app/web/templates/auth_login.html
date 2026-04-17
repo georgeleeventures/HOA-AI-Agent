@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in — HouseKeep</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+            background: #f5f7fa;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #1a202c;
+        }
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 420px;
+        }
+        h1 { margin: 0 0 8px; font-size: 28px; color: #2b6cb0; }
+        p.sub { margin: 0 0 28px; color: #4a5568; font-size: 14px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: #2d3748; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 15px;
+            margin-bottom: 16px;
+            transition: border 0.15s;
+        }
+        input:focus { outline: none; border-color: #2b6cb0; }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #2b6cb0;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        button:hover { background: #2c5282; }
+        button:disabled { background: #a0aec0; cursor: not-allowed; }
+        .divider { text-align: center; color: #a0aec0; font-size: 13px; margin: 20px 0; }
+        .google-btn {
+            background: white;
+            color: #2d3748;
+            border: 1px solid #e2e8f0;
+        }
+        .google-btn:hover { background: #f7fafc; }
+        .message { padding: 12px; border-radius: 8px; margin-bottom: 16px; font-size: 14px; }
+        .message.success { background: #c6f6d5; color: #22543d; }
+        .message.error { background: #fed7d7; color: #742a2a; }
+        .link { color: #2b6cb0; text-decoration: none; font-size: 14px; }
+        .link:hover { text-decoration: underline; }
+        .footer { text-align: center; margin-top: 20px; font-size: 13px; color: #718096; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>HouseKeep</h1>
+        <p class="sub">Sign in to your HOA dashboard</p>
+
+        <div id="message"></div>
+
+        <div id="step-email">
+            <label for="email">Email address</label>
+            <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+            <button id="send-btn" onclick="sendCode()">Send login code</button>
+        </div>
+
+        <div id="step-code" style="display:none">
+            <label for="code">6-digit code</label>
+            <input type="text" id="code" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+            <button id="verify-btn" onclick="verifyCode()">Verify and sign in</button>
+            <div class="footer" style="margin-top:12px">
+                <a class="link" href="#" onclick="goBack();return false;">← Use a different email</a>
+            </div>
+        </div>
+
+        <div class="divider">— or —</div>
+        <button class="google-btn" onclick="window.location='/login'">Continue with Google</button>
+
+        <div class="footer">
+            <a class="link" href="/signup">Don't have an account? Create an HOA →</a>
+        </div>
+    </div>
+
+    <script>
+        let currentEmail = "";
+
+        async function sendCode() {
+            const email = document.getElementById("email").value.trim();
+            if (!email || !email.includes("@")) {
+                showMessage("Please enter a valid email", "error");
+                return;
+            }
+            const btn = document.getElementById("send-btn");
+            btn.disabled = true;
+            btn.textContent = "Sending...";
+            try {
+                const resp = await fetch("/auth/send-code", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({email})
+                });
+                if (resp.ok) {
+                    currentEmail = email;
+                    document.getElementById("step-email").style.display = "none";
+                    document.getElementById("step-code").style.display = "block";
+                    showMessage(`Check ${email} for a 6-digit code.`, "success");
+                    setTimeout(() => document.getElementById("code").focus(), 100);
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    showMessage(data.detail || "Failed to send code", "error");
+                    btn.disabled = false;
+                    btn.textContent = "Send login code";
+                }
+            } catch (e) {
+                showMessage("Network error. Try again.", "error");
+                btn.disabled = false;
+                btn.textContent = "Send login code";
+            }
+        }
+
+        async function verifyCode() {
+            const code = document.getElementById("code").value.trim();
+            if (code.length !== 6) {
+                showMessage("Please enter the 6-digit code", "error");
+                return;
+            }
+            const btn = document.getElementById("verify-btn");
+            btn.disabled = true;
+            btn.textContent = "Verifying...";
+            try {
+                const resp = await fetch("/auth/verify-code", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({email: currentEmail, code})
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    window.location = data.redirect || "/";
+                } else {
+                    const data = await resp.json().catch(() => ({}));
+                    showMessage(data.detail || "Invalid code", "error");
+                    btn.disabled = false;
+                    btn.textContent = "Verify and sign in";
+                }
+            } catch (e) {
+                showMessage("Network error. Try again.", "error");
+                btn.disabled = false;
+                btn.textContent = "Verify and sign in";
+            }
+        }
+
+        function goBack() {
+            document.getElementById("step-code").style.display = "none";
+            document.getElementById("step-email").style.display = "block";
+            document.getElementById("send-btn").disabled = false;
+            document.getElementById("send-btn").textContent = "Send login code";
+            showMessage("", "");
+        }
+
+        function showMessage(text, type) {
+            const el = document.getElementById("message");
+            if (!text) { el.innerHTML = ""; return; }
+            el.innerHTML = `<div class="message ${type}">${text}</div>`;
+        }
+    </script>
+</body>
+</html>

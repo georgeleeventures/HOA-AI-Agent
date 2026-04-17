@@ -56,6 +56,7 @@ class RAGPipeline:
     async def query(
         self,
         question: str,
+        hoa_id: str,
         user_role: str = "resident",
         top_k: int = 5,
     ) -> dict:
@@ -67,7 +68,7 @@ class RAGPipeline:
         )
 
         # Check admin answers first (FAQ override)
-        admin_answer = await self._check_admin_answers(question_embedding)
+        admin_answer = await self._check_admin_answers(question_embedding, hoa_id)
         if admin_answer:
             return {
                 "answer": admin_answer["answer"],
@@ -84,7 +85,7 @@ class RAGPipeline:
 
         # Search for relevant chunks (now includes distance scores)
         chunks = await self._search_chunks(
-            question_embedding, user_role, top_k
+            question_embedding, hoa_id, user_role, top_k
         )
 
         if not chunks:
@@ -145,6 +146,7 @@ class RAGPipeline:
     async def _search_chunks(
         self,
         question_embedding: list[float],
+        hoa_id: str,
         user_role: str,
         top_k: int,
     ) -> list[dict]:
@@ -163,13 +165,15 @@ class RAGPipeline:
                            (dc.embedding <=> $2) AS distance
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
-                    WHERE d.category = ANY($1)
+                    WHERE dc.hoa_id = $4
+                      AND d.category = ANY($1)
                     ORDER BY dc.embedding <=> $2
                     LIMIT $3
                     """,
                     allowed,
                     question_embedding,
                     top_k,
+                    hoa_id,
                 )
             else:
                 # Admin/board: access everything
@@ -180,11 +184,13 @@ class RAGPipeline:
                            (dc.embedding <=> $1) AS distance
                     FROM document_chunks dc
                     JOIN documents d ON dc.document_id = d.id
+                    WHERE dc.hoa_id = $3
                     ORDER BY dc.embedding <=> $1
                     LIMIT $2
                     """,
                     question_embedding,
                     top_k,
+                    hoa_id,
                 )
 
         return [dict(row) for row in rows]
@@ -224,8 +230,12 @@ class RAGPipeline:
 
     @staticmethod
     def _needs_clarification(question: str, confidence: str) -> bool:
-        """Determine if we should ask clarifying questions instead of answering."""
-        if confidence != "low":
+        """Determine if we should ask clarifying questions instead of answering.
+
+        Only triggers when no chunks were found at all ("none"),
+        not when chunks exist but are low quality ("low").
+        """
+        if confidence != "none":
             return False
         word_count = len(question.strip().split())
         return word_count < 10
@@ -254,7 +264,7 @@ class RAGPipeline:
             )
 
     async def _check_admin_answers(
-        self, question_embedding: list[float]
+        self, question_embedding: list[float], hoa_id: str
     ) -> dict | None:
         """Check if an admin-approved FAQ answer matches the question."""
         async with self.pool.acquire() as conn:
@@ -263,11 +273,12 @@ class RAGPipeline:
                 """
                 SELECT id, answer, (embedding <=> $1) AS distance
                 FROM admin_answers
-                WHERE is_active = TRUE
+                WHERE is_active = TRUE AND hoa_id = $2
                 ORDER BY embedding <=> $1
                 LIMIT 1
                 """,
                 question_embedding,
+                hoa_id,
             )
 
         if row and row["distance"] < settings.admin_answer_threshold:
@@ -276,17 +287,22 @@ class RAGPipeline:
 
     @staticmethod
     def _compute_confidence(chunks: list[dict]) -> tuple[str, float]:
-        """Compute confidence level from chunk similarity distances."""
+        """Compute confidence level from chunk similarity distances.
+
+        Uses weighted score (70% best match + 30% average) to avoid
+        outlier-driven false confidence.
+        """
         distances = [c["distance"] for c in chunks if c.get("distance") is not None]
         if not distances:
             return "none", 0.0
 
         best = min(distances)
         avg = sum(distances) / len(distances)
+        weighted = (best * 0.7) + (avg * 0.3)
 
-        if best < settings.confidence_high_threshold:
+        if weighted < settings.confidence_high_threshold:
             return "high", round(avg, 4)
-        elif best < settings.confidence_medium_threshold:
+        elif weighted < settings.confidence_medium_threshold:
             return "medium", round(avg, 4)
         else:
             return "low", round(avg, 4)

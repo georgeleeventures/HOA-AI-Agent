@@ -64,6 +64,23 @@ class DocumentProcessor:
         """Extract text from a file. Uses pdfplumber for text PDFs,
         Gemini multimodal for scanned docs and images."""
 
+        # Infer MIME type from extension if generic
+        if mime_type in ("application/octet-stream", ""):
+            ext = file_path.rsplit(".", 1)[-1].lower() if "." in file_path else ""
+            mime_map = {
+                "pdf": "application/pdf",
+                "jpg": "image/jpeg", "jpeg": "image/jpeg",
+                "png": "image/png",
+                "gif": "image/gif",
+                "webp": "image/webp",
+                "tiff": "image/tiff", "tif": "image/tiff",
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            }
+            if ext in mime_map:
+                mime_type = mime_map[ext]
+                logger.info("Inferred MIME type %s from extension .%s", mime_type, ext)
+
         # Images go straight to Gemini OCR
         if mime_type in IMAGE_MIME_TYPES:
             return await self._ocr_with_gemini(file_path, mime_type)
@@ -131,6 +148,9 @@ class DocumentProcessor:
         classification = await self.classify_document(text, filename)
 
         confidence = classification.get("confidence", 0.0)
+
+        # Strip null bytes that can come from PDF binary content
+        text = text.replace("\x00", "")
 
         return {
             "category": classification.get("category", "Correspondence"),
