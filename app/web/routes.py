@@ -248,9 +248,10 @@ async def document_detail(request: Request, doc_id: str):
 
     from app.documents.store import DocumentStore
 
+    hoa_id = user.get("hoa_id") or get_hoa_id(request)
     pool = await get_pool()
     store = DocumentStore(pool)
-    doc = await store.get_document(doc_id)
+    doc = await store.get_document(doc_id, hoa_id)
 
     if not doc:
         return RedirectResponse("/documents")
