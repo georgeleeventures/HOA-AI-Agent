@@ -1,0 +1,2 @@
+# Daily compressed PostgreSQL backup. Bucket retention removes objects after 30 days.
+15 3 * * * root HOUSEKEEP_BACKUP_BUCKET=gs://sheer-dumb-luck-housekeep-backups /opt/housekeep/app-src/scripts/backup_db.sh >> /var/log/housekeep-backup.log 2>&1

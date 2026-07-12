@@ -64,7 +64,7 @@ class EmbeddingService:
             project=settings.gcp_project_id,
             location=settings.vertex_ai_location,
         )
-        self.model = TextEmbeddingModel.from_pretrained("text-embedding-004")
+        self.model = TextEmbeddingModel.from_pretrained(settings.embedding_model)
 
     async def generate_embedding(self, text: str) -> list[float]:
         """Generate a 768-dimensional embedding for a single text."""

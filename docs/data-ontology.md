@@ -4,7 +4,7 @@
 
 Every document that HouseKeep AI ingests — whether it's an email attachment, a forwarded file, a scanned PDF, or a photo — is classified with a **category**, **subcategory**, and a set of **extracted metadata fields**. This taxonomy is the backbone of how documents are stored, searched, and presented to users.
 
-The classification is performed automatically by the AI (Gemini 2.0 Flash) at ingestion time. Each document is analyzed and returned as structured JSON with category, subcategory, confidence score, and all applicable metadata fields.
+The classification is performed automatically by the AI (Gemini 2.5 Flash) at ingestion time. Each document is analyzed and returned as structured JSON with category, subcategory, confidence score, and all applicable metadata fields.
 
 ---
 
@@ -90,7 +90,7 @@ The classification is performed automatically by the AI (Gemini 2.0 Flash) at in
 
 1. **Document arrives** — Either as an email attachment, a forwarded file, or extracted from an email thread.
 
-2. **Text extraction** — If the document is a text-based PDF or email body, text is extracted directly using `pdfplumber` or `PyPDF2`. If it's a scanned PDF, image, or photo, it's sent to Gemini 2.0 Flash as a multimodal input for OCR.
+2. **Text extraction** — If the document is a text-based PDF or email body, text is extracted directly using `pdfplumber` or `PyPDF2`. If it's a scanned PDF, image, or photo, it's sent to Gemini 2.5 Flash as a multimodal input for OCR.
 
 3. **AI classification** — The extracted text (or raw image for scanned docs) is sent to Gemini with the classification prompt:
 

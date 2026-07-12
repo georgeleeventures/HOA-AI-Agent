@@ -105,14 +105,14 @@ Replies sent via Resend API with `In-Reply-To` and `References` headers for prop
 | File Type | Method |
 |-----------|--------|
 | PDF (text) | pdfplumber |
-| PDF (scanned) | Gemini 2.0 Flash OCR |
+| PDF (scanned) | Gemini 2.5 Flash OCR |
 | Images | Gemini multimodal OCR |
 | DOCX, XLSX | Direct text read |
 | Unknown MIME | Infer from file extension |
 
 ### Classification
 
-Gemini 2.0 Flash classifies documents into 9 categories / 28 subcategories (see `docs/data-ontology.md`). Returns: category, subcategory, confidence (0-1), title, metadata.
+Gemini 2.5 Flash classifies documents into 9 categories / 28 subcategories (see `docs/data-ontology.md`). Thinking is disabled and output is capped for predictable cost and latency. Returns: category, subcategory, confidence (0-1), title, metadata.
 
 ### Versioning
 

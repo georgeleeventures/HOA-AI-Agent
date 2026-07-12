@@ -6,11 +6,12 @@ python-multipart==0.0.20
 
 # Gmail API
 google-api-python-client==2.159.0
-google-auth-oauthlib==1.2.1
+google-auth-oauthlib==1.4.0
 google-auth-httplib2==0.2.0
 
 # Vertex AI (Gemini + Embeddings)
 google-cloud-aiplatform==1.78.0
+google-genai==1.56.0
 
 # PostgreSQL
 asyncpg==0.30.0
