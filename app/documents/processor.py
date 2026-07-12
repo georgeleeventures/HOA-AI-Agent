@@ -4,10 +4,9 @@ import logging
 import re
 
 import pdfplumber
-import vertexai
-from vertexai.generative_models import GenerativeModel, Part
 
 from app.config import settings
+from app.knowledge.generation import GenerationService, get_generation_service
 
 logger = logging.getLogger(__name__)
 
@@ -53,12 +52,8 @@ MIN_TEXT_LENGTH = 50
 
 
 class DocumentProcessor:
-    def __init__(self):
-        vertexai.init(
-            project=settings.gcp_project_id,
-            location=settings.vertex_ai_location,
-        )
-        self.model = GenerativeModel("gemini-2.0-flash")
+    def __init__(self, generation_service: GenerationService | None = None):
+        self.generation_service = generation_service or get_generation_service()
 
     async def extract_text(self, file_path: str, mime_type: str) -> str:
         """Extract text from a file. Uses pdfplumber for text PDFs,
@@ -117,10 +112,13 @@ class DocumentProcessor:
         prompt += f"\n\nDocument text:\n{truncated}"
 
         try:
-            response = await asyncio.to_thread(
-                self.model.generate_content, prompt
+            response_text = await self.generation_service.generate_text(
+                prompt,
+                max_output_tokens=settings.ai_classification_max_output_tokens,
+                temperature=0.0,
+                response_mime_type="application/json",
             )
-            return self._parse_classification_response(response.text)
+            return self._parse_classification_response(response_text)
         except Exception:
             logger.exception("Classification failed for %s", filename)
             return {
@@ -169,26 +167,23 @@ class DocumentProcessor:
 
     async def _ocr_with_gemini(self, file_path: str, mime_type: str) -> str:
         """Use Gemini multimodal to OCR a scanned document or image."""
-
-        def _run():
-            with open(file_path, "rb") as f:
-                file_bytes = f.read()
-            document_part = Part.from_data(data=file_bytes, mime_type=mime_type)
-            response = self.model.generate_content(
-                [
-                    "Extract all text from this document. Return only the "
-                    "extracted text, preserving the original structure as much "
-                    "as possible. Do not add commentary or formatting.",
-                    document_part,
-                ]
-            )
-            return response.text
-
         try:
-            return await asyncio.to_thread(_run)
+            file_bytes = await asyncio.to_thread(self._read_bytes, file_path)
+            return await self.generation_service.extract_text(
+                "Extract all text from this document. Return only the extracted "
+                "text, preserving the original structure as much as possible. "
+                "Do not add commentary or formatting.",
+                file_bytes,
+                mime_type,
+            )
         except Exception:
             logger.exception("Gemini OCR failed for %s", file_path)
             return ""
+
+    @staticmethod
+    def _read_bytes(file_path: str) -> bytes:
+        with open(file_path, "rb") as f:
+            return f.read()
 
     @staticmethod
     def _extract_pdf_text(file_path: str) -> str:

@@ -16,6 +16,8 @@ for mod_name in [
     "pgvector.asyncpg",
     "google.oauth2.credentials",
     "google.oauth2",
+    "google.genai",
+    "google.genai.types",
     "google",
     "googleapiclient",
     "googleapiclient.discovery",

@@ -3,7 +3,7 @@ import logging
 import time
 
 from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.database import get_pool
 from app.tenant import get_hoa_id
@@ -16,7 +16,7 @@ router = APIRouter()
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=2000)
 
 
 class FeedbackRequest(BaseModel):

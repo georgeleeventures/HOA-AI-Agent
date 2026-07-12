@@ -68,7 +68,7 @@ A simple web dashboard is also available for residents who want a richer experie
 
 ## Technical Summary
 
-- **Hosting:** Single Google Cloud VM (~$7/month base infrastructure)
+- **Hosting:** Free-tier-eligible e2-micro VM; approximately $4-5/month including the public IPv4 and typical Vertex AI usage
 - **AI:** Google Gemini for document understanding, OCR, classification, and question answering
 - **Email:** Gmail API integration with push notifications for real-time processing
 - **Security:** Email sender verification (SPF/DKIM/DMARC), role-based access, encrypted data at rest and in transit, full audit logging

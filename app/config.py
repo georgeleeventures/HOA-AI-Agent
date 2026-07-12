@@ -14,6 +14,18 @@ class Settings(BaseSettings):
     gcp_project_id: str = ""
     vertex_ai_location: str = "us-central1"
 
+    # Vertex AI generation cost and reliability controls
+    generative_model: str = "gemini-2.5-flash"
+    embedding_model: str = "text-embedding-004"
+    ai_timeout_seconds: int = 20
+    ai_max_concurrency: int = 1
+    ai_max_output_tokens: int = 768
+    ai_clarification_max_output_tokens: int = 384
+    ai_classification_max_output_tokens: int = 512
+    ai_ocr_max_output_tokens: int = 4096
+    rag_top_k: int = 4
+    rag_max_context_chars: int = 10000
+
     # Application
     domain: str = "localhost"
     app_secret_key: str = "dev-secret-key-change-in-production"

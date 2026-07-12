@@ -2,7 +2,7 @@
 
 ## Hosting Strategy
 
-HouseKeep AI runs on a **single Google Compute Engine VM** (e2-micro, ~$7/month) with all services orchestrated via Docker Compose. This follows the same proven pattern used for the existing n8n deployments.
+HouseKeep AI runs on a **single Google Compute Engine e2-micro VM** with all services orchestrated via Docker Compose. In `us-central1`, this machine is eligible for GCP's monthly Free Tier when the billing account has not used its e2-micro allowance elsewhere.
 
 **Why GCP:** Native Vertex AI/Gemini integration, Gmail API is a Google product, same ecosystem and Terraform patterns as existing infrastructure.
 
@@ -13,17 +13,25 @@ HouseKeep AI runs on a **single Google Compute Engine VM** (e2-micro, ~$7/month)
 ## Cost Breakdown
 
 ```
-Monthly Cost (single HOA, medium scale):
-├── GCE VM (e2-micro)               ~$7/mo
-├── Vertex AI / Gemini 2.0 Flash     ~$5-15/mo  (depends on query volume)
-├── Vertex AI / Embeddings            ~$1-3/mo   (text-embedding-004, very cheap)
-├── Pub/Sub (email notifications)     ~$0-1/mo
-├── Static IP (optional)              ~$3/mo
-├── GCS (backups)                     ~$0-1/mo
-└── Total                             ~$16-29/mo per HOA
+Monthly Cost (single HOA, approximately 200-1,000 questions):
+├── GCE VM (e2-micro)                 $0     (Free Tier)
+├── Standard persistent disk          $0     (within 30 GB account allowance)
+├── Vertex AI / Gemini 2.5 Flash      ~$0.14-0.69
+├── Vertex AI / embeddings            <$0.01 for a small HOA corpus
+├── Static external IPv4              ~$3.65
+├── GCS compressed backups            $0     (within 5 GB US allowance)
+└── HouseKeep total                    ~$3.80-4.50
 ```
 
-For comparison, the managed services approach (Cloud SQL + Cloud Run + Cloud Storage) would run ~$50-100/mo.
+The current billing account also hosts an n8n e2-small VM. HouseKeep's 20 GB
+disk and n8n's 10 GB disk consume the full 30 GB standard-disk allowance, so
+do not add another persistent disk or snapshot when optimizing for Free Tier.
+Domain registration and Resend charges are outside GCP.
+
+Gemini thinking is disabled for RAG requests. Generation is limited to one
+concurrent request, 768 output tokens, and 10,000 context characters. A $5
+monthly budget monitors Vertex AI spend; the existing project-wide budget
+continues to cover shared n8n and Compute Engine costs.
 
 ---
 
@@ -477,64 +485,39 @@ echo "=== HouseKeep AI: Setup complete ==="
 
 ## Backup Strategy
 
-Since we're not using Cloud SQL, we manage our own database backups.
+Since we're not using Cloud SQL, we manage our own compressed database backups.
+The production bucket is in `us-central1`, blocks public access, and deletes
+objects after 30 days so backups remain well below the free storage allowance.
 
-### Backup Script (`/opt/housekeep/backup.sh`)
+### Backup Script
 
-```bash
-#!/bin/bash
-set -e
-
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-HOA_ID="${HOA_ID:-default}"
-BUCKET="gs://housekeep-backups-${HOA_ID}"
-BACKUP_FILE="/tmp/housekeep_${TIMESTAMP}.sql.gz"
-
-# Dump PostgreSQL and compress
-docker exec housekeep-postgres-1 \
-    pg_dump -U housekeep housekeep | gzip > "$BACKUP_FILE"
-
-# Upload to Google Cloud Storage
-gsutil cp "$BACKUP_FILE" "${BUCKET}/"
-
-# Clean up local file
-rm "$BACKUP_FILE"
-
-# Delete backups older than 30 days
-gsutil ls "${BUCKET}/" | sort | head -n -30 | xargs -r gsutil rm
-
-echo "Backup complete: housekeep_${TIMESTAMP}.sql.gz"
-```
+The repository script `scripts/backup_db.sh` streams a PostgreSQL dump to a
+temporary compressed file, uploads it with `gcloud storage cp`, and always
+removes the local file. Set `HOUSEKEEP_BACKUP_BUCKET` to the destination URI.
 
 ### Cron Entry
 
 ```bash
-# Run daily at 3 AM
-0 3 * * * /opt/housekeep/backup.sh >> /var/log/housekeep-backup.log 2>&1
+# Run daily at 03:15 UTC
+15 3 * * * root HOUSEKEEP_BACKUP_BUCKET=gs://sheer-dumb-luck-housekeep-backups /opt/housekeep/app-src/scripts/backup_db.sh >> /var/log/housekeep-backup.log 2>&1
 ```
 
 ### Setup
 
 ```bash
-# Create the GCS bucket (one-time)
-gsutil mb -l us-central1 gs://housekeep-backups-${HOA_ID}
-
-# Make the backup script executable
-chmod +x /opt/housekeep/backup.sh
-
-# Add to crontab
-(crontab -l 2>/dev/null; echo "0 3 * * * /opt/housekeep/backup.sh >> /var/log/housekeep-backup.log 2>&1") | crontab -
+# The deployed cron definition is installed from:
+sudo install -m 0644 scripts/housekeep-backup.cron /etc/cron.d/housekeep-backup
 ```
 
 ### Restoring from Backup
 
 ```bash
 # Download the latest backup
-gsutil cp gs://housekeep-backups-${HOA_ID}/housekeep_LATEST.sql.gz /tmp/
+gcloud storage cp gs://sheer-dumb-luck-housekeep-backups/housekeep_TIMESTAMP.sql.gz /tmp/housekeep.sql.gz
 
 # Restore
-gunzip < /tmp/housekeep_LATEST.sql.gz | \
-    docker exec -i housekeep-postgres-1 psql -U housekeep housekeep
+gunzip < /tmp/housekeep.sql.gz | \
+    docker compose exec -T postgres psql -U housekeep housekeep
 ```
 
 ---
@@ -587,20 +570,17 @@ docker compose build housekeep
 docker compose up -d housekeep
 ```
 
-### Upgrading the VM
+### Keeping the VM in the Free Tier
 
 ```bash
-# Stop the VM
-gcloud compute instances stop housekeep-server --zone=us-central1-a
-
-# Change machine type (e.g., e2-micro to e2-small)
-gcloud compute instances set-machine-type housekeep-server \
+# Verify the machine remains an e2-micro in an eligible region.
+gcloud compute instances describe housekeep-server \
     --zone=us-central1-a \
-    --machine-type=e2-small
-
-# Start the VM (Docker services auto-restart)
-gcloud compute instances start housekeep-server --zone=us-central1-a
+    --format='value(machineType.basename(),zone.basename())'
 ```
+
+Do not resize this deployment to e2-small: that machine type is not covered by
+the Compute Engine Free Tier.
 
 ---
 

@@ -5,16 +5,16 @@
 | Layer | Technology | Rationale |
 |-------|-----------|-----------|
 | **Runtime** | Python 3.12+ | Best ecosystem for AI/ML, Gmail API client libraries, document processing |
-| **LLM** | Google Vertex AI (Gemini 2.0 Flash) | Cost-effective (~$0.10/1M input tokens), strong multimodal/OCR, native GCP integration |
-| **Embedding Model** | Google text-embedding-004 via Vertex AI | 768-dimensional vectors, $0.00025 per 1K characters |
+| **LLM** | Google Vertex AI (Gemini 2.5 Flash) | Cost-effective, strong multimodal/OCR, native GCP integration |
+| **Embedding Model** | Google text-embedding-004 via Vertex AI | 768-dimensional vectors, $0.000025 per 1K characters |
 | **Email Integration** | Gmail API (OAuth2) | Full programmatic access to threads, attachments, and push notifications |
 | **Database** | PostgreSQL 16 + pgvector | Single database for structured data and vector embeddings, no external service |
-| **Document Processing** | Gemini 2.0 Flash (multimodal) | OCR + classification + metadata extraction in a single API call |
+| **Document Processing** | Gemini 2.5 Flash (multimodal) | OCR + classification + metadata extraction in a single API call |
 | **Text Extraction** | PyPDF2 / pdfplumber | Extract text from non-scanned PDFs before sending to Gemini for classification |
 | **Web Framework** | FastAPI | Lightweight, async, auto-generated OpenAPI docs |
 | **Web Frontend** | HTML/CSS/JS with Jinja2 templates (or lightweight React) | Minimal frontend — chat interface, document browser, admin panel |
 | **Reverse Proxy** | Caddy 2 | Automatic TLS via Let's Encrypt, simple Caddyfile config |
-| **Hosting** | Single GCE VM (e2-micro) + Docker Compose | ~$7/mo, all services on one box |
+| **Hosting** | Single GCE VM (e2-micro) + Docker Compose | Free-tier eligible; public IPv4 is the main fixed cost |
 | **File Storage** | Local disk (Docker volume) | Attachments stored on VM, no external storage service |
 | **Auth** | Google OAuth2 | Residents sign in with their Google account, email maps to authorization |
 
@@ -158,25 +158,34 @@ When a new email arrives, Google sends a notification to the Pub/Sub topic, whic
 
 ### Approach: Gemini Multimodal
 
-Rather than using a separate OCR service, we send documents directly to Gemini 2.0 Flash. For scanned PDFs and images, Gemini performs OCR, classification, and metadata extraction in a single API call.
+Rather than using a separate OCR service, we send documents directly to Gemini 2.5 Flash. For scanned PDFs and images, Gemini performs OCR, classification, and metadata extraction in a single API call.
 
 ### For Scanned PDFs / Images (OCR Required)
 
 ```python
-import vertexai
-from vertexai.generative_models import GenerativeModel, Part
+import json
 
-vertexai.init(project=GCP_PROJECT_ID, location="us-central1")
-model = GenerativeModel("gemini-2.0-flash")
+from google import genai
+from google.genai import types
+
+client = genai.Client(
+    vertexai=True,
+    project=GCP_PROJECT_ID,
+    location="us-central1",
+)
 
 def classify_scanned_document(file_bytes: bytes, mime_type: str) -> dict:
     """OCR + classify a scanned document in one Gemini call."""
-    document_part = Part.from_data(data=file_bytes, mime_type=mime_type)
+    document_part = types.Part.from_bytes(data=file_bytes, mime_type=mime_type)
 
-    response = model.generate_content([
-        CLASSIFICATION_PROMPT,
-        document_part
-    ])
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[CLASSIFICATION_PROMPT, document_part],
+        config=types.GenerateContentConfig(
+            max_output_tokens=512,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
 
     return json.loads(response.text)
 ```
@@ -191,10 +200,14 @@ def classify_text_document(pdf_path: str) -> dict:
     with pdfplumber.open(pdf_path) as pdf:
         text = "\n".join(page.extract_text() or "" for page in pdf.pages)
 
-    response = model.generate_content([
-        CLASSIFICATION_PROMPT,
-        f"Document text:\n{text}"
-    ])
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=[CLASSIFICATION_PROMPT, f"Document text:\n{text}"],
+        config=types.GenerateContentConfig(
+            max_output_tokens=512,
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
+    )
 
     return json.loads(response.text)
 ```
@@ -232,7 +245,7 @@ Return format:
 
 ### Cost
 
-- Gemini 2.0 Flash: ~$0.10 per 1M input tokens, ~$0.40 per 1M output tokens
+- Gemini 2.5 Flash: usage-based Vertex AI pricing; thinking is disabled to control output cost
 - A typical document classification: ~1K-5K input tokens = $0.0001-0.0005 per document
 - Baseline ingestion of 1,000 documents: ~$0.10-0.50 total
 
@@ -339,7 +352,7 @@ async def answer_question(conn, question: str) -> str:
 All services run on a single GCE VM via Docker Compose:
 
 ```
-┌──────────────────── GCE VM (e2-micro, ~$7/mo) ────────────────────┐
+┌──────────────────── GCE VM (free-tier e2-micro) ────────────────────┐
 │                                                                     │
 │  Docker Compose                                                     │
 │  ┌───────────────────────────────────────────────────────────────┐  │

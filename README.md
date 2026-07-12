@@ -17,12 +17,14 @@ An email-first AI agent for HOA (Homeowners Association) management. HouseKeep i
 ## Tech Stack
 
 - **Runtime:** Python 3.12+ / FastAPI
-- **AI:** Google Vertex AI (Gemini 2.0 Flash + text-embedding-004)
-- **Email:** Gmail API (OAuth2) with Pub/Sub push notifications
+- **AI:** Google Vertex AI (Gemini 2.5 Flash + text-embedding-004)
+- **Email:** Resend inbound webhooks and Gmail API compatibility
 - **Database:** PostgreSQL 16 + pgvector
-- **Hosting:** Single GCE VM (e2-micro, ~$7/mo) with Docker Compose
+- **Hosting:** Single free-tier-eligible GCE e2-micro with Docker Compose
 - **Reverse Proxy:** Caddy 2 (auto-TLS)
 
 ## Estimated Cost
 
-~$16-29/month per HOA (VM + Vertex AI API usage + Pub/Sub).
+Approximately $4-5/month for the current single-HOA deployment. The VM and
+standard disk fit within GCP's monthly Free Tier limits; the public IPv4
+address is the main fixed charge and Vertex AI adds usage-based costs.

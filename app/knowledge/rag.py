@@ -1,12 +1,11 @@
-import asyncio
 import logging
 
 import asyncpg
-from vertexai.generative_models import GenerativeModel
 from pgvector.asyncpg import register_vector
 
 from app.config import settings
 from app.knowledge.embeddings import EmbeddingService
+from app.knowledge.generation import GenerationService, get_generation_service
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +47,26 @@ User's question: {question}"""
 
 
 class RAGPipeline:
-    def __init__(self, pool: asyncpg.Pool, embedding_service: EmbeddingService):
+    def __init__(
+        self,
+        pool: asyncpg.Pool,
+        embedding_service: EmbeddingService,
+        generation_service: GenerationService | None = None,
+    ):
         self.pool = pool
         self.embedding_service = embedding_service
-        self.model = GenerativeModel("gemini-2.0-flash")
+        self.generation_service = generation_service or get_generation_service()
 
     async def query(
         self,
         question: str,
         hoa_id: str,
         user_role: str = "resident",
-        top_k: int = 5,
+        top_k: int | None = None,
     ) -> dict:
         """Main RAG query: embed question, search, generate answer."""
+
+        top_k = self._bounded_top_k(top_k)
 
         # Embed the question (reused for admin answer check and chunk search)
         question_embedding = await self.embedding_service.generate_embedding(
@@ -198,13 +204,28 @@ class RAGPipeline:
     def _build_context(self, chunks: list[dict]) -> str:
         """Format retrieved chunks as context for the LLM."""
         parts = []
+        remaining = settings.rag_max_context_chars
         for chunk in chunks:
+            if remaining <= 0:
+                break
+            separator = "" if not parts else "\n\n---\n\n"
             header = (
                 f"[{chunk['category']} > {chunk['subcategory']} "
                 f"— {chunk.get('title', 'Untitled')}]"
             )
-            parts.append(f"{header}\n{chunk['chunk_text']}")
+            fixed_cost = len(separator) + len(header) + 1
+            available = max(remaining - fixed_cost, 0)
+            if available <= 0:
+                break
+            text = chunk["chunk_text"][:available]
+            parts.append(f"{header}\n{text}")
+            remaining -= fixed_cost + len(text)
         return "\n\n---\n\n".join(parts)
+
+    @staticmethod
+    def _bounded_top_k(top_k: int | None) -> int:
+        """Keep retrieval within the configured budget and SQL-safe bounds."""
+        return max(1, min(top_k or settings.rag_top_k, settings.rag_top_k))
 
     async def _generate_answer(
         self, question: str, context: str, role: str
@@ -217,10 +238,11 @@ class RAGPipeline:
         )
 
         try:
-            response = await asyncio.to_thread(
-                self.model.generate_content, prompt
+            return await self.generation_service.generate_text(
+                prompt,
+                max_output_tokens=settings.ai_max_output_tokens,
+                temperature=0.1,
             )
-            return response.text
         except Exception:
             logger.exception("Failed to generate answer")
             return (
@@ -250,10 +272,11 @@ class RAGPipeline:
             categories=", ".join(categories),
         )
         try:
-            response = await asyncio.to_thread(
-                self.model.generate_content, prompt
+            return await self.generation_service.generate_text(
+                prompt,
+                max_output_tokens=settings.ai_clarification_max_output_tokens,
+                temperature=0.1,
             )
-            return response.text
         except Exception:
             logger.exception("Failed to generate clarification")
             return (
